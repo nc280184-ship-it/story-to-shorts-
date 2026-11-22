@@ -18,7 +18,7 @@
       background: #1e293b; color: #f8fafc; font-size: 0.96rem; margin-bottom: 12px;
     }
     select { padding: 11px 12px; }
-    textarea { height: 130px; padding: 13px; resize: vertical; line-height: 1.5; }
+    textarea { height: 125px; padding: 13px; resize: vertical; line-height: 1.5; }
 
     .btn-gen {
       width: 100%; padding: 14px; border: none; border-radius: 12px;
@@ -54,10 +54,9 @@
 <body>
   <div class="container">
     <h1>AI Cartoon Video Generator</h1>
-    <p class="sub">Language ane Voice pasand karo, story lakho ane Generate Video dabavi ne cartoon video banavo.</p>
+    <p class="sub">Je line bole te j video ma dekhashe, ane story mujab voice tone (Emotional, Gusso, Deep) badlashe.</p>
 
     <div class="grid-2">
-      <!-- Option 1: Language -->
       <div>
         <label for="langOption">1. Language</label>
         <select id="langOption" onchange="updateVoiceInfo()">
@@ -66,7 +65,6 @@
         </select>
       </div>
 
-      <!-- Option 2: Voice (Female / Male) -->
       <div>
         <label for="voiceGender">2. Voice</label>
         <select id="voiceGender" onchange="updateVoiceInfo()">
@@ -76,10 +74,19 @@
       </div>
     </div>
 
+    <div>
+      <label for="moodOption">Voice & Scene Mood</label>
+      <select id="moodOption" onchange="updateVoiceInfo()">
+        <option value="auto" selected>Auto (Story mujab)</option>
+        <option value="emotional">Emotional (ભાવુક)</option>
+        <option value="angry">Gusso (ગુસ્સો / તીવ્ર)</option>
+        <option value="deep">Deep & Calm (ગંભીર / શાંત)</option>
+      </select>
+    </div>
+
     <label for="storyText">Story / Text</label>
     <textarea id="storyText" placeholder="અહીં તમારી વાર્તા લખો (Hindi અથવા Gujarati માં)..."></textarea>
 
-    <!-- Option 3: Generate Video -->
     <button class="btn-gen" id="genVideoBtn" onclick="generateCartoonVideo()">3. Generate Video</button>
     <button class="btn-stop" onclick="stopCartoonVideo()">Stop / Reset</button>
 
@@ -97,7 +104,38 @@
     let mediaRecorder = null;
     let chunks = [];
     let animFrame = null;
-    let currentLine = "";
+    let linesQueue = [];
+    let activeLineIdx = 0;
+    let activeLineText = "";
+    let activeMood = "neutral";
+
+    function detectMoodFromLine(line, gender) {
+      const manual = document.getElementById("moodOption").value;
+      if (manual !== "auto") return manual;
+
+      const t = line.toLowerCase();
+      const angryWords = ["गुस्सा", "गुस्से", "चिल्ला", "नफरत", "बकवास", "gusso", "gusse", "krodh", "chilla", "!"];
+      const emotionalWords = ["प्यार", "त्याग", "बीमार", "आंसू", "रोने", "दिल", "माता", "पिता", "प्रेम", "pyar", "tyag", "bimar", "ansu", "dil", "prem"];
+
+      if (angryWords.some(w => t.includes(w))) return "angry";
+      if (emotionalWords.some(w => t.includes(w))) return "emotional";
+      if (gender === "male") return "deep";
+      return "neutral";
+    }
+
+    function getToneParams(mood, gender) {
+      const basePitch = gender === "male" ? 0.82 : 1.15;
+      if (mood === "angry") {
+        return { pitch: Math.min(1.4, basePitch + 0.14), rate: 1.12 };
+      }
+      if (mood === "emotional") {
+        return { pitch: Math.max(0.68, basePitch - 0.08), rate: 0.88 };
+      }
+      if (mood === "deep") {
+        return { pitch: Math.max(0.58, basePitch - 0.22), rate: 0.90 };
+      }
+      return { pitch: basePitch, rate: 0.98 };
+    }
 
     function pickBestVoice(langCode, gender) {
       if (!("speechSynthesis" in window)) return null;
@@ -121,19 +159,45 @@
     function updateVoiceInfo() {
       const lang = document.getElementById("langOption").value;
       const gender = document.getElementById("voiceGender").value;
+      const moodSel = document.getElementById("moodOption").value;
       const v = pickBestVoice(lang, gender);
       const info = document.getElementById("voiceInfo");
-      if (!v) {
-        info.textContent = "Phone ma voice list nathi mali; default voice thi prayatna thashe.";
-        return;
-      }
-      info.textContent = `Selected: ${gender.toUpperCase()} | Voice: ${v.name} (${v.lang})`;
+      const vName = v ? `${v.name} (${v.lang})` : "Default System Voice";
+      info.textContent = `Voice: ${vName} | Mode: ${moodSel.toUpperCase()} | Line-by-line sync ON`;
     }
 
     if ("speechSynthesis" in window) {
       window.speechSynthesis.onvoiceschanged = updateVoiceInfo;
     }
     updateVoiceInfo();
+
+    function splitIntoLines(rawText) {
+      const sentences = rawText
+        .split(/(?<=[.!?।])\s+|\n+/)
+        .map(s => s.trim())
+        .filter(Boolean);
+
+      const finalLines = [];
+      for (const s of sentences) {
+        if (s.length <= 95) {
+          finalLines.push(s);
+        } else {
+          const words = s.split(/\s+/);
+          let cur = "";
+          for (const w of words) {
+            const test = cur ? cur + " " + w : w;
+            if (test.length > 90 && cur) {
+              finalLines.push(cur);
+              cur = w;
+            } else {
+              cur = test;
+            }
+          }
+          if (cur) finalLines.push(cur);
+        }
+      }
+      return finalLines.length ? finalLines : [rawText.trim()];
+    }
 
     function wrapLines(ctx, text, maxWidth) {
       const words = text.trim().split(/\s+/).filter(Boolean);
@@ -149,7 +213,7 @@
         }
       }
       if (cur) lines.push(cur);
-      return lines.slice(0, 6);
+      return lines.slice(0, 5);
     }
 
     function drawCartoonScene(t) {
@@ -160,33 +224,40 @@
       const h = canvas.height;
       const gender = document.getElementById("voiceGender").value;
 
-      // Sky & room background
+      let topBg = "#1e3a8a";
+      let borderAccent = "#38bdf8";
+      if (activeMood === "angry") {
+        topBg = "#7f1d1d";
+        borderAccent = "#f87171";
+      } else if (activeMood === "emotional") {
+        topBg = "#312e81";
+        borderAccent = "#c084fc";
+      } else if (activeMood === "deep") {
+        topBg = "#0f172a";
+        borderAccent = "#22c55e";
+      }
+
       const sky = ctx.createLinearGradient(0, 0, 0, h);
-      sky.addColorStop(0, "#1e3a8a");
-      sky.addColorStop(0.65, "#0f172a");
-      sky.addColorStop(0.65, "#1e293b");
+      sky.addColorStop(0, topBg);
+      sky.addColorStop(0.64, "#0f172a");
+      sky.addColorStop(0.64, "#1e293b");
       sky.addColorStop(1, "#090d16");
       ctx.fillStyle = sky;
       ctx.fillRect(0, 0, w, h);
 
-      // Soft glowing sun/orb
-      ctx.fillStyle = "rgba(250, 204, 21, 0.22)";
-      ctx.beginPath();
-      ctx.arc(580, 180, 120 + Math.sin(t / 500) * 12, 0, Math.PI * 2);
-      ctx.fill();
-
+      const shakeX = activeMood === "angry" && isSpeaking ? Math.sin(t / 35) * 6 : 0;
       const bob = isSpeaking ? Math.sin(t / 120) * 10 : Math.sin(t / 450) * 4;
       const armWave = isSpeaking ? Math.sin(t / 140) * 0.35 : Math.sin(t / 500) * 0.08;
-      const cx = w / 2;
-      const cy = 440 + bob;
+      const cx = w / 2 + shakeX;
+      const cy = 430 + bob;
 
-      // Torso / shirt
+      // Torso
       ctx.fillStyle = gender === "male" ? "#0284c7" : "#ec4899";
       ctx.beginPath();
       ctx.roundRect(cx - 95, cy + 85, 190, 190, 45);
       ctx.fill();
 
-      // Waving left arm
+      // Arms
       ctx.save();
       ctx.translate(cx - 95, cy + 115);
       ctx.rotate(-0.5 + armWave);
@@ -196,7 +267,6 @@
       ctx.fill();
       ctx.restore();
 
-      // Right arm
       ctx.save();
       ctx.translate(cx + 95, cy + 115);
       ctx.rotate(0.4 - armWave);
@@ -224,7 +294,27 @@
         ctx.fill();
       }
 
-      // Blinking eyes
+      // Eyebrows based on mood
+      ctx.strokeStyle = "#1e1b4b";
+      ctx.lineWidth = 7;
+      ctx.lineCap = "round";
+      if (activeMood === "angry") {
+        ctx.beginPath();
+        ctx.moveTo(cx - 56, cy - 34);
+        ctx.lineTo(cx - 22, cy - 20);
+        ctx.moveTo(cx + 56, cy - 34);
+        ctx.lineTo(cx + 22, cy - 20);
+        ctx.stroke();
+      } else if (activeMood === "emotional") {
+        ctx.beginPath();
+        ctx.moveTo(cx - 56, cy - 24);
+        ctx.lineTo(cx - 22, cy - 34);
+        ctx.moveTo(cx + 56, cy - 24);
+        ctx.lineTo(cx + 22, cy - 34);
+        ctx.stroke();
+      }
+
+      // Eyes
       const isBlinking = Math.sin(t / 900) > 0.96;
       ctx.fillStyle = "#0f172a";
       if (isBlinking) {
@@ -243,31 +333,37 @@
         ctx.fill();
       }
 
-      // Talking mouth animation
+      // Mouth
       const mouthOpen = isSpeaking ? 8 + Math.abs(Math.sin(t / 95)) * 22 : 6;
       ctx.fillStyle = "#991b1b";
       ctx.beginPath();
       ctx.ellipse(cx, cy + 42, 24, mouthOpen, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      // Caption box at bottom
-      ctx.fillStyle = "rgba(15, 23, 42, 0.85)";
+      // Active line caption box (only currently speaking line)
+      ctx.fillStyle = "rgba(15, 23, 42, 0.9)";
       ctx.beginPath();
-      ctx.roundRect(45, 780, w - 90, 390, 28);
+      ctx.roundRect(40, 770, w - 80, 410, 28);
       ctx.fill();
 
-      ctx.strokeStyle = "#38bdf8";
+      ctx.strokeStyle = borderAccent;
       ctx.lineWidth = 3;
       ctx.stroke();
 
-      ctx.fillStyle = "#ffffff";
-      ctx.font = "bold 36px system-ui, sans-serif";
+      ctx.fillStyle = borderAccent;
+      ctx.font = "bold 24px system-ui, sans-serif";
       ctx.textAlign = "center";
-      const textToDraw = currentLine || "તમારી વાર્તા અહીં દેખાશે...";
-      const lines = wrapLines(ctx, textToDraw, w - 140);
-      const startY = 855;
+      const total = linesQueue.length || 1;
+      const lineBadge = isSpeaking ? `LINE ${activeLineIdx + 1} / ${total} • ${activeMood.toUpperCase()}` : "READY";
+      ctx.fillText(lineBadge, w / 2, 820);
+
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "bold 38px system-ui, sans-serif";
+      const textToDraw = activeLineText || "";
+      const lines = wrapLines(ctx, textToDraw, w - 130);
+      const startY = 890;
       lines.forEach((line, idx) => {
-        ctx.fillText(line, cx, startY + idx * 52);
+        ctx.fillText(line, w / 2, startY + idx * 54);
       });
     }
 
@@ -283,6 +379,8 @@
     function stopCartoonVideo() {
       isSpeaking = false;
       isRecording = false;
+      activeLineText = "";
+      activeMood = "neutral";
       if ("speechSynthesis" in window) {
         window.speechSynthesis.cancel();
       }
@@ -290,17 +388,73 @@
         mediaRecorder.stop();
       }
       document.getElementById("genVideoBtn").textContent = "3. Generate Video";
+      drawCartoonScene(performance.now());
+    }
+
+    function speakLineAt(index) {
+      if (!isRecording && !isSpeaking) return;
+      if (index >= linesQueue.length) {
+        isSpeaking = false;
+        activeLineText = "";
+        setTimeout(() => {
+          if (mediaRecorder && mediaRecorder.state === "recording") {
+            mediaRecorder.stop();
+          }
+          stopCartoonVideo();
+        }, 500);
+        return;
+      }
+
+      activeLineIdx = index;
+      activeLineText = linesQueue[index];
+
+      const lang = document.getElementById("langOption").value;
+      const gender = document.getElementById("voiceGender").value;
+      activeMood = detectMoodFromLine(activeLineText, gender);
+      const tone = getToneParams(activeMood, gender);
+
+      if (!("speechSynthesis" in window)) {
+        isSpeaking = true;
+        setTimeout(() => speakLineAt(index + 1), 2400);
+        return;
+      }
+
+      window.speechSynthesis.cancel();
+      const utter = new SpeechSynthesisUtterance(activeLineText);
+      utter.lang = lang;
+      utter.pitch = tone.pitch;
+      utter.rate = tone.rate;
+
+      const chosenVoice = pickBestVoice(lang, gender);
+      if (chosenVoice) utter.voice = chosenVoice;
+
+      isSpeaking = true;
+      utter.onend = () => {
+        if (!isRecording && !isSpeaking) return;
+        speakLineAt(index + 1);
+      };
+      utter.onerror = () => {
+        if (!isRecording && !isSpeaking) return;
+        speakLineAt(index + 1);
+      };
+
+      window.speechSynthesis.speak(utter);
     }
 
     function generateCartoonVideo() {
-      const text = document.getElementById("storyText").value.trim();
-      if (!text) {
+      const raw = document.getElementById("storyText").value.trim();
+      if (!raw) {
         alert("કૃપા કરીને પહેલા Story / Text લખો.");
         return;
       }
 
       stopCartoonVideo();
-      currentLine = text;
+      linesQueue = splitIntoLines(raw);
+      activeLineIdx = 0;
+      activeLineText = linesQueue[0];
+      const gender = document.getElementById("voiceGender").value;
+      activeMood = detectMoodFromLine(activeLineText, gender);
+
       document.getElementById("stageWrap").style.display = "flex";
       document.getElementById("downloadBtn").style.display = "none";
       startRenderLoop();
@@ -322,6 +476,7 @@
           mediaRecorder.onstop = () => {
             isRecording = false;
             isSpeaking = false;
+            activeLineText = "";
             document.getElementById("genVideoBtn").textContent = "3. Generate Video";
             if (!chunks.length) return;
             const blob = new Blob(chunks, { type: mime || "video/webm" });
@@ -339,41 +494,8 @@
         }
       }
 
-      if ("speechSynthesis" in window) {
-        const lang = document.getElementById("langOption").value;
-        const gender = document.getElementById("voiceGender").value;
-        const utter = new SpeechSynthesisUtterance(text);
-        utter.lang = lang;
-        utter.pitch = gender === "male" ? 0.82 : 1.18;
-        utter.rate = 0.98;
-        const chosenVoice = pickBestVoice(lang, gender);
-        if (chosenVoice) utter.voice = chosenVoice;
-
-        isSpeaking = true;
-        utter.onend = () => {
-          isSpeaking = false;
-          setTimeout(() => {
-            if (mediaRecorder && mediaRecorder.state === "recording") {
-              mediaRecorder.stop();
-            }
-          }, 600);
-        };
-        utter.onerror = () => {
-          isSpeaking = false;
-          if (mediaRecorder && mediaRecorder.state === "recording") {
-            mediaRecorder.stop();
-          }
-        };
-        window.speechSynthesis.speak(utter);
-      } else {
-        isSpeaking = true;
-        setTimeout(() => {
-          isSpeaking = false;
-          if (mediaRecorder && mediaRecorder.state === "recording") {
-            mediaRecorder.stop();
-          }
-        }, 6000);
-      }
+      isSpeaking = true;
+      speakLineAt(0);
     }
   </script>
 </body>
