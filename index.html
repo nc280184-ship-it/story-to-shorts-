@@ -3,503 +3,377 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Story to Shorts Studio</title>
+  <title>AI Cartoon Story Video Generator</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
     body { background: #0b1120; color: #f8fafc; min-height: 100vh; padding: 16px; }
-    .container { max-width: 580px; margin: 0 auto; }
-    h1 { font-size: 1.75rem; color: #38bdf8; margin-bottom: 6px; }
+    .container { max-width: 560px; margin: 0 auto; }
+    h1 { font-size: 1.7rem; color: #38bdf8; margin-bottom: 6px; }
     p.sub { color: #94a3b8; font-size: 0.9rem; margin-bottom: 14px; line-height: 1.45; }
 
-    .sample-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
-    .sample-btn {
-      background: #1e293b; color: #e2e8f0; border: 1px solid #475569;
-      padding: 8px 12px; border-radius: 10px; font-size: 0.84rem; font-weight: 600; cursor: pointer;
-    }
-
     .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-    label { display: block; font-size: 0.82rem; color: #cbd5e1; margin-bottom: 5px; }
+    label { display: block; font-size: 0.84rem; color: #cbd5e1; margin-bottom: 5px; font-weight: 600; }
     select, textarea {
       width: 100%; border-radius: 12px; border: 1px solid #334155;
-      background: #1e293b; color: #f8fafc; font-size: 0.94rem; margin-bottom: 12px;
+      background: #1e293b; color: #f8fafc; font-size: 0.96rem; margin-bottom: 12px;
     }
-    select { padding: 10px 12px; }
-    textarea { height: 135px; padding: 12px; resize: vertical; line-height: 1.5; }
+    select { padding: 11px 12px; }
+    textarea { height: 130px; padding: 13px; resize: vertical; line-height: 1.5; }
 
-    .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
-    button { border: none; border-radius: 12px; font-weight: 700; cursor: pointer; }
-    .btn-primary { flex: 2; min-width: 140px; padding: 12px; background: #38bdf8; color: #0f172a; font-size: 0.94rem; }
-    .btn-playall { flex: 1; min-width: 110px; padding: 12px; background: #22c55e; color: #052e16; font-size: 0.9rem; }
-    .btn-rec { flex: 1; min-width: 130px; padding: 12px; background: #f59e0b; color: #111827; font-size: 0.9rem; }
-    .btn-stop { padding: 12px 14px; background: #ef4444; color: #ffffff; font-size: 0.9rem; }
+    .btn-gen {
+      width: 100%; padding: 14px; border: none; border-radius: 12px;
+      background: #22c55e; color: #052e16; font-weight: 800; font-size: 1rem;
+      cursor: pointer; margin-bottom: 10px;
+    }
+    .btn-stop {
+      width: 100%; padding: 10px; border: none; border-radius: 10px;
+      background: #ef4444; color: #ffffff; font-weight: 700; font-size: 0.9rem;
+      cursor: pointer; margin-bottom: 12px;
+    }
 
-    .status-box {
+    .info-box {
       background: #111827; border: 1px solid #334155; border-radius: 12px;
       padding: 10px 12px; font-size: 0.82rem; color: #cbd5e1; margin-bottom: 14px; line-height: 1.45;
     }
 
-    .canvas-wrap {
-      display: none; flex-direction: column; align-items: center; margin: 14px 0 18px;
+    .stage-wrap {
+      display: none; flex-direction: column; align-items: center; margin-top: 10px;
     }
-    canvas#videoCanvas {
-      width: 100%; max-width: 300px; aspect-ratio: 9 / 16;
-      border-radius: 18px; border: 2px solid #38bdf8; background: #0f172a;
-      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.5);
+    canvas#cartoonCanvas {
+      width: 100%; max-width: 310px; aspect-ratio: 9 / 16;
+      border-radius: 20px; border: 2px solid #38bdf8; background: #0f172a;
+      box-shadow: 0 14px 32px rgba(0, 0, 0, 0.55);
     }
-    .canvas-controls {
-      width: 100%; max-width: 300px; display: flex; gap: 8px; margin-top: 10px;
-    }
-    .canvas-controls button { flex: 1; padding: 9px; font-size: 0.84rem; background: #334155; color: #fff; }
-    #downloadLink {
-      display: none; margin-top: 10px; padding: 10px 16px; border-radius: 10px;
-      background: #22c55e; color: #052e16; font-weight: 700; text-decoration: none; font-size: 0.9rem;
-    }
-
-    .output { display: flex; flex-direction: column; gap: 12px; margin-top: 10px; }
-    .card {
-      background: #1e293b; border: 1px solid #334155; border-radius: 14px; padding: 14px;
-    }
-    .card.active-card { border-color: #22c55e; }
-    .tag { font-size: 0.74rem; color: #38bdf8; font-weight: 700; margin-bottom: 6px; text-transform: uppercase; }
-    .card-text { font-size: 0.98rem; line-height: 1.55; margin-bottom: 12px; }
-    .card-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-    .speak-btn { background: #22c55e; color: #052e16; padding: 8px 13px; border-radius: 10px; font-size: 0.84rem; }
-    .copy-btn { background: #0f172a; color: #f8fafc; border: 1px solid #475569; padding: 8px 12px; border-radius: 10px; font-size: 0.84rem; }
-
-    .toast {
-      position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
-      background: #22c55e; color: #052e16; font-weight: 700; padding: 9px 16px;
-      border-radius: 999px; display: none; z-index: 99; font-size: 0.86rem;
+    #downloadBtn {
+      display: none; margin-top: 12px; padding: 12px 18px; border-radius: 12px;
+      background: #38bdf8; color: #0f172a; font-weight: 800; text-decoration: none;
+      font-size: 0.95rem; text-align: center;
     }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1>Story to Shorts Studio</h1>
-    <p class="sub">Hindi & Gujarati voice selection, 9:16 visual canvas, ane browser video recording.</p>
-
-    <div class="sample-row">
-      <button class="sample-btn" onclick="loadSample('gu')">Sample Gujarati</button>
-      <button class="sample-btn" onclick="loadSample('hi')">Sample Hindi</button>
-    </div>
+    <h1>AI Cartoon Video Generator</h1>
+    <p class="sub">Language ane Voice pasand karo, story lakho ane Generate Video dabavi ne cartoon video banavo.</p>
 
     <div class="grid-2">
+      <!-- Option 1: Language -->
       <div>
-        <label for="langSelect">ભાષા (Language)</label>
-        <select id="langSelect" onchange="populateVoices(); drawCanvasFrame();">
-          <option value="hi-IN" selected>हिन्दी (Hindi)</option>
-          <option value="gu-IN">ગુજરાતી (Gujarati)</option>
+        <label for="langOption">1. Language</label>
+        <select id="langOption" onchange="updateVoiceInfo()">
+          <option value="hi-IN" selected>Hindi (हिन्दी)</option>
+          <option value="gu-IN">Gujarati (ગુજરાતી)</option>
         </select>
       </div>
-      <div>
-        <label for="countSelect">Shorts ની સંખ્યા</label>
-        <select id="countSelect" onchange="generateShorts()">
-          <option value="3" selected>3 Shorts</option>
-          <option value="5">5 Shorts</option>
-          <option value="7">7 Shorts</option>
-        </select>
-      </div>
-    </div>
 
-    <div class="grid-2">
+      <!-- Option 2: Voice (Female / Male) -->
       <div>
-        <label for="voiceSelect">Voice (Phone/Browser List)</label>
-        <select id="voiceSelect"></select>
-      </div>
-      <div>
-        <label for="themeSelect">Video Background Theme</label>
-        <select id="themeSelect" onchange="drawCanvasFrame()">
-          <option value="ocean" selected>Ocean Blue</option>
-          <option value="sunset">Sunset Gold</option>
-          <option value="emerald">Emerald Dark</option>
+        <label for="voiceGender">2. Voice</label>
+        <select id="voiceGender" onchange="updateVoiceInfo()">
+          <option value="female" selected>Female Voice</option>
+          <option value="male">Male Voice</option>
         </select>
       </div>
     </div>
 
-    <div class="grid-2">
-      <div>
-        <label for="speedSelect">Voice Speed</label>
-        <select id="speedSelect">
-          <option value="0.85">0.85x</option>
-          <option value="1" selected>1.0x</option>
-          <option value="1.15">1.15x</option>
-        </select>
-      </div>
-      <div>
-        <label for="pitchSelect">Voice Pitch (Tone)</label>
-        <select id="pitchSelect">
-          <option value="0.8">Low (0.8)</option>
-          <option value="1" selected>Normal (1.0)</option>
-          <option value="1.2">High (1.2)</option>
-        </select>
-      </div>
+    <label for="storyText">Story / Text</label>
+    <textarea id="storyText" placeholder="અહીં તમારી વાર્તા લખો (Hindi અથવા Gujarati માં)..."></textarea>
+
+    <!-- Option 3: Generate Video -->
+    <button class="btn-gen" id="genVideoBtn" onclick="generateCartoonVideo()">3. Generate Video</button>
+    <button class="btn-stop" onclick="stopCartoonVideo()">Stop / Reset</button>
+
+    <div class="info-box" id="voiceInfo">Voice check thai rahyu che...</div>
+
+    <div class="stage-wrap" id="stageWrap">
+      <canvas id="cartoonCanvas" width="720" height="1280"></canvas>
+      <a id="downloadBtn" download="cartoon-story.webm">⬇ Download Video</a>
     </div>
-
-    <label for="storyInput">તમારી વાર્તા / Text</label>
-    <textarea id="storyInput" placeholder="અહીં ગુજરાતી અથવા હિન્દીમાં text લખો..."></textarea>
-
-    <div class="btn-row">
-      <button class="btn-primary" onclick="generateShorts()">Generate Shorts</button>
-      <button class="btn-playall" onclick="playAllShorts()">▶ Play All</button>
-      <button class="btn-rec" id="recBtn" onclick="toggleRecordShort()">⏺ Record Video</button>
-      <button class="btn-stop" onclick="stopAll()">Stop</button>
-    </div>
-
-    <div class="status-box" id="voiceStatus">Voices loading...</div>
-
-    <div class="canvas-wrap" id="canvasWrap">
-      <canvas id="videoCanvas" width="720" height="1280"></canvas>
-      <div class="canvas-controls">
-        <button onclick="stepShort(-1)">◀ Prev</button>
-        <button onclick="speakCurrent(false)">🔊 Speak</button>
-        <button onclick="stepShort(1)">Next ▶</button>
-      </div>
-      <a id="downloadLink" download="short-video.webm">⬇ Download Recorded Video</a>
-    </div>
-
-    <div class="output" id="output"></div>
   </div>
 
-  <div class="toast" id="toast">Copied!</div>
-
   <script>
-    let chunks = [];
-    let currentIdx = 0;
-    let isPlayingAll = false;
+    let isSpeaking = false;
+    let isRecording = false;
     let mediaRecorder = null;
-    let recordedBlobs = [];
-    let animId = null;
+    let chunks = [];
+    let animFrame = null;
+    let currentLine = "";
 
-    const samples = {
-      gu: "સવારના પહોરમાં એક નાનકડા ગામમાં એક મહેનતુ કારીગર રહેતો હતો. રોજ નવું શીખવાની તેની આદતે તેને સૌથી અલગ બનાવ્યો. મુશ્કેલી આવે ત્યારે તે હાર માનવાને બદલે નવો રસ્તો શોધતો. ધીમે ધીમે તેની મહેનત રંગ લાવી અને તેનું કામ આખા વિસ્તારમાં વખણાવા લાગ્યું.",
-      hi: "एक छोटे से शहर में रहने वाला एक युवक हर दिन कुछ नया सीखने का संकल्प लेता था। शुरुआत में कई बार असफलता मिली, लेकिन उसने कभी हार नहीं मानी। हर गलती से उसने एक सबक लिया और अपने काम को बेहतर बनाता गया। लगातार प्रयास करने वालों की जीत हमेशा होती है।"
-    };
+    function pickBestVoice(langCode, gender) {
+      if (!("speechSynthesis" in window)) return null;
+      const voices = window.speechSynthesis.getVoices() || [];
+      const prefix = langCode.split("-")[0].toLowerCase();
+      const langVoices = voices.filter(v => v.lang && v.lang.toLowerCase().startsWith(prefix));
+      const pool = langVoices.length ? langVoices : voices;
+      if (!pool.length) return null;
 
-    const themes = {
-      ocean: ["#0f172a", "#1d4ed8", "#38bdf8"],
-      sunset: ["#1f1125", "#9a3412", "#fb923c"],
-      emerald: ["#06201b", "#047857", "#34d399"]
-    };
+      const femaleHints = ["female", "woman", "girl", "heera", "swara", "lekha", "priya", "neerja", "aditi", "google हिन्दी", "google ગુજરાતી"];
+      const maleHints = ["male", "man", "boy", "ravi", "prabhat", "hemant", "rahul", "arjun", "aarav"];
 
-    function showToast(msg) {
-      const t = document.getElementById("toast");
-      t.textContent = msg;
-      t.style.display = "block";
-      clearTimeout(window.toastTimer);
-      window.toastTimer = setTimeout(() => { t.style.display = "none"; }, 1800);
+      const hints = gender === "male" ? maleHints : femaleHints;
+      const matched = pool.find(v => hints.some(h => v.name.toLowerCase().includes(h)));
+      if (matched) return matched;
+
+      if (gender === "male" && pool.length > 1) return pool[1];
+      return pool[0];
     }
 
-    function populateVoices() {
-      const select = document.getElementById("voiceSelect");
-      const status = document.getElementById("voiceStatus");
-      const lang = document.getElementById("langSelect").value;
-      const prefix = lang.split("-")[0];
-
-      if (!("speechSynthesis" in window)) {
-        select.innerHTML = '<option value="">Not Supported</option>';
-        status.textContent = "આ બ્રાઉઝરમાં speechSynthesis સપોર્ટ નથી.";
+    function updateVoiceInfo() {
+      const lang = document.getElementById("langOption").value;
+      const gender = document.getElementById("voiceGender").value;
+      const v = pickBestVoice(lang, gender);
+      const info = document.getElementById("voiceInfo");
+      if (!v) {
+        info.textContent = "Phone ma voice list nathi mali; default voice thi prayatna thashe.";
         return;
       }
-
-      const allVoices = window.speechSynthesis.getVoices() || [];
-      const matching = allVoices.filter(v => v.lang && v.lang.toLowerCase().startsWith(prefix));
-      const list = matching.length ? matching : allVoices;
-
-      select.innerHTML = "";
-      if (!list.length) {
-        select.innerHTML = '<option value="">Default System Voice</option>';
-        status.textContent = "ફોનમાં અત્યારે અલગ voice list નથી દેખાઈ. જો ફક્ત female voice આવતો હોય તો Android Settings > Text-to-speech output માં voice data ચેક કરો.";
-        return;
-      }
-
-      list.forEach((v, idx) => {
-        const opt = document.createElement("option");
-        opt.value = v.name;
-        opt.textContent = `${v.name} (${v.lang})${idx === 0 ? " - Default" : ""}`;
-        select.appendChild(opt);
-      });
-
-      status.textContent = matching.length
-        ? `${lang} માટે ${matching.length} voice(s) મળ્યા. પસંદ કરીને Speak/Record દબાવો.`
-        : `${lang} માટે ખાસ voice pack નથી મળ્યો; ${list.length} general voice(s) બતાવ્યા છે. વધુ voices માટે phone ના TTS settings માં ${lang} voice install કરો.`;
+      info.textContent = `Selected: ${gender.toUpperCase()} | Voice: ${v.name} (${v.lang})`;
     }
 
     if ("speechSynthesis" in window) {
-      window.speechSynthesis.onvoiceschanged = populateVoices;
+      window.speechSynthesis.onvoiceschanged = updateVoiceInfo;
     }
-    populateVoices();
+    updateVoiceInfo();
 
-    function loadSample(lang) {
-      document.getElementById("langSelect").value = lang === "gu" ? "gu-IN" : "hi-IN";
-      document.getElementById("storyInput").value = samples[lang];
-      populateVoices();
-      generateShorts();
-    }
-
-    function wrapCanvasText(ctx, text, x, y, maxWidth, lineHeight) {
-      const words = text.split(/\s+/);
-      let line = "";
+    function wrapLines(ctx, text, maxWidth) {
+      const words = text.trim().split(/\s+/).filter(Boolean);
       const lines = [];
-      for (let i = 0; i < words.length; i++) {
-        const testLine = line ? line + " " + words[i] : words[i];
-        if (ctx.measureText(testLine).width > maxWidth && line) {
-          lines.push(line);
-          line = words[i];
+      let cur = "";
+      for (const w of words) {
+        const test = cur ? cur + " " + w : w;
+        if (ctx.measureText(test).width > maxWidth && cur) {
+          lines.push(cur);
+          cur = w;
         } else {
-          line = testLine;
+          cur = test;
         }
       }
-      if (line) lines.push(line);
-
-      const totalHeight = lines.length * lineHeight;
-      let startY = y - totalHeight / 2;
-      lines.forEach((l, idx) => {
-        ctx.fillText(l, x, startY + idx * lineHeight);
-      });
+      if (cur) lines.push(cur);
+      return lines.slice(0, 6);
     }
 
-    function drawCanvasFrame(timeMs = 0) {
-      const canvas = document.getElementById("videoCanvas");
+    function drawCartoonScene(t) {
+      const canvas = document.getElementById("cartoonCanvas");
       if (!canvas) return;
       const ctx = canvas.getContext("2d");
-      const themeKey = document.getElementById("themeSelect").value;
-      const [c1, c2, accent] = themes[themeKey] || themes.ocean;
+      const w = canvas.width;
+      const h = canvas.height;
+      const gender = document.getElementById("voiceGender").value;
 
-      const pulse = 0.5 + 0.5 * Math.sin(timeMs / 600);
-      const grad = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
-      grad.addColorStop(0, c1);
-      grad.addColorStop(0.55 + pulse * 0.15, c2);
-      grad.addColorStop(1, c1);
+      // Sky & room background
+      const sky = ctx.createLinearGradient(0, 0, 0, h);
+      sky.addColorStop(0, "#1e3a8a");
+      sky.addColorStop(0.65, "#0f172a");
+      sky.addColorStop(0.65, "#1e293b");
+      sky.addColorStop(1, "#090d16");
+      ctx.fillStyle = sky;
+      ctx.fillRect(0, 0, w, h);
 
-      ctx.fillStyle = grad;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-      ctx.fillStyle = accent;
-      ctx.globalAlpha = 0.18;
+      // Soft glowing sun/orb
+      ctx.fillStyle = "rgba(250, 204, 21, 0.22)";
       ctx.beginPath();
-      ctx.arc(580, 220 + pulse * 30, 170, 0, Math.PI * 2);
+      ctx.arc(580, 180, 120 + Math.sin(t / 500) * 12, 0, Math.PI * 2);
       ctx.fill();
-      ctx.globalAlpha = 1;
 
-      ctx.fillStyle = accent;
-      ctx.font = "bold 28px system-ui, sans-serif";
-      ctx.textAlign = "center";
-      const label = chunks.length ? `SHORT #${currentIdx + 1} OF ${chunks.length}` : "STORY TO SHORTS";
-      ctx.fillText(label, canvas.width / 2, 130);
+      const bob = isSpeaking ? Math.sin(t / 120) * 10 : Math.sin(t / 450) * 4;
+      const armWave = isSpeaking ? Math.sin(t / 140) * 0.35 : Math.sin(t / 500) * 0.08;
+      const cx = w / 2;
+      const cy = 440 + bob;
+
+      // Torso / shirt
+      ctx.fillStyle = gender === "male" ? "#0284c7" : "#ec4899";
+      ctx.beginPath();
+      ctx.roundRect(cx - 95, cy + 85, 190, 190, 45);
+      ctx.fill();
+
+      // Waving left arm
+      ctx.save();
+      ctx.translate(cx - 95, cy + 115);
+      ctx.rotate(-0.5 + armWave);
+      ctx.fillStyle = "#fdba74";
+      ctx.beginPath();
+      ctx.roundRect(-24, 0, 46, 130, 22);
+      ctx.fill();
+      ctx.restore();
+
+      // Right arm
+      ctx.save();
+      ctx.translate(cx + 95, cy + 115);
+      ctx.rotate(0.4 - armWave);
+      ctx.fillStyle = "#fdba74";
+      ctx.beginPath();
+      ctx.roundRect(-22, 0, 46, 130, 22);
+      ctx.fill();
+      ctx.restore();
+
+      // Head
+      ctx.fillStyle = "#fed7aa";
+      ctx.beginPath();
+      ctx.arc(cx, cy, 105, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Hair
+      ctx.fillStyle = "#1e1b4b";
+      ctx.beginPath();
+      ctx.arc(cx, cy - 18, 108, Math.PI * 1.05, Math.PI * 1.95);
+      ctx.fill();
+      if (gender === "female") {
+        ctx.beginPath();
+        ctx.roundRect(cx - 110, cy - 20, 36, 130, 18);
+        ctx.roundRect(cx + 74, cy - 20, 36, 130, 18);
+        ctx.fill();
+      }
+
+      // Blinking eyes
+      const isBlinking = Math.sin(t / 900) > 0.96;
+      ctx.fillStyle = "#0f172a";
+      if (isBlinking) {
+        ctx.fillRect(cx - 52, cy - 12, 26, 5);
+        ctx.fillRect(cx + 26, cy - 12, 26, 5);
+      } else {
+        ctx.beginPath();
+        ctx.arc(cx - 38, cy - 12, 13, 0, Math.PI * 2);
+        ctx.arc(cx + 38, cy - 12, 13, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = "#ffffff";
+        ctx.beginPath();
+        ctx.arc(cx - 42, cy - 16, 5, 0, Math.PI * 2);
+        ctx.arc(cx + 34, cy - 16, 5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Talking mouth animation
+      const mouthOpen = isSpeaking ? 8 + Math.abs(Math.sin(t / 95)) * 22 : 6;
+      ctx.fillStyle = "#991b1b";
+      ctx.beginPath();
+      ctx.ellipse(cx, cy + 42, 24, mouthOpen, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Caption box at bottom
+      ctx.fillStyle = "rgba(15, 23, 42, 0.85)";
+      ctx.beginPath();
+      ctx.roundRect(45, 780, w - 90, 390, 28);
+      ctx.fill();
+
+      ctx.strokeStyle = "#38bdf8";
+      ctx.lineWidth = 3;
+      ctx.stroke();
 
       ctx.fillStyle = "#ffffff";
-      ctx.font = "bold 42px system-ui, sans-serif";
-      const textToShow = chunks[currentIdx] || "Generate Shorts દબાવીને વાર્તા તૈયાર કરો";
-      wrapCanvasText(ctx, textToShow, canvas.width / 2, canvas.height / 2, 600, 60);
-
-      ctx.fillStyle = "#cbd5e1";
-      ctx.font = "24px system-ui, sans-serif";
-      ctx.fillText("9:16 Vertical Preview", canvas.width / 2, canvas.height - 90);
-    }
-
-    function startCanvasLoop() {
-      if (animId) cancelAnimationFrame(animId);
-      const loop = (t) => {
-        drawCanvasFrame(t);
-        animId = requestAnimationFrame(loop);
-      };
-      animId = requestAnimationFrame(loop);
-    }
-
-    function highlightActive(idx) {
-      currentIdx = idx;
-      document.querySelectorAll(".card").forEach((c, i) => {
-        c.classList.toggle("active-card", i === idx);
+      ctx.font = "bold 36px system-ui, sans-serif";
+      ctx.textAlign = "center";
+      const textToDraw = currentLine || "તમારી વાર્તા અહીં દેખાશે...";
+      const lines = wrapLines(ctx, textToDraw, w - 140);
+      const startY = 855;
+      lines.forEach((line, idx) => {
+        ctx.fillText(line, cx, startY + idx * 52);
       });
-      drawCanvasFrame(performance.now());
     }
 
-    function stopAll() {
-      isPlayingAll = false;
+    function startRenderLoop() {
+      if (animFrame) cancelAnimationFrame(animFrame);
+      const step = (t) => {
+        drawCartoonScene(t);
+        animFrame = requestAnimationFrame(step);
+      };
+      animFrame = requestAnimationFrame(step);
+    }
+
+    function stopCartoonVideo() {
+      isSpeaking = false;
+      isRecording = false;
       if ("speechSynthesis" in window) {
         window.speechSynthesis.cancel();
       }
       if (mediaRecorder && mediaRecorder.state === "recording") {
         mediaRecorder.stop();
       }
-      document.getElementById("recBtn").textContent = "⏺ Record Video";
-      document.querySelectorAll(".card").forEach(c => c.classList.remove("active-card"));
+      document.getElementById("genVideoBtn").textContent = "3. Generate Video";
     }
 
-    function speakAt(idx, autoNext) {
-      if (!("speechSynthesis" in window) || !chunks[idx]) return;
-      window.speechSynthesis.cancel();
-      highlightActive(idx);
+    function generateCartoonVideo() {
+      const text = document.getElementById("storyText").value.trim();
+      if (!text) {
+        alert("કૃપા કરીને પહેલા Story / Text લખો.");
+        return;
+      }
 
-      const u = new SpeechSynthesisUtterance(chunks[idx]);
-      u.lang = document.getElementById("langSelect").value;
-      u.rate = parseFloat(document.getElementById("speedSelect").value) || 1;
-      u.pitch = parseFloat(document.getElementById("pitchSelect").value) || 1;
+      stopCartoonVideo();
+      currentLine = text;
+      document.getElementById("stageWrap").style.display = "flex";
+      document.getElementById("downloadBtn").style.display = "none";
+      startRenderLoop();
 
-      const selectedVoiceName = document.getElementById("voiceSelect").value;
-      const voices = window.speechSynthesis.getVoices() || [];
-      const chosen = voices.find(v => v.name === selectedVoiceName);
-      if (chosen) u.voice = chosen;
+      const canvas = document.getElementById("cartoonCanvas");
+      const canRecord = Boolean(canvas.captureStream && typeof MediaRecorder !== "undefined");
 
-      u.onend = () => {
-        if (autoNext && isPlayingAll && idx + 1 < chunks.length) {
-          speakAt(idx + 1, true);
-        } else {
-          isPlayingAll = false;
+      if (canRecord) {
+        chunks = [];
+        const stream = canvas.captureStream(30);
+        const types = ["video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm", "video/mp4"];
+        const mime = types.find(m => MediaRecorder.isTypeSupported(m)) || "";
+
+        try {
+          mediaRecorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+          mediaRecorder.ondataavailable = (e) => {
+            if (e.data && e.data.size > 0) chunks.push(e.data);
+          };
+          mediaRecorder.onstop = () => {
+            isRecording = false;
+            isSpeaking = false;
+            document.getElementById("genVideoBtn").textContent = "3. Generate Video";
+            if (!chunks.length) return;
+            const blob = new Blob(chunks, { type: mime || "video/webm" });
+            const url = URL.createObjectURL(blob);
+            const dl = document.getElementById("downloadBtn");
+            dl.href = url;
+            dl.download = mime.includes("mp4") ? "cartoon-story.mp4" : "cartoon-story.webm";
+            dl.style.display = "inline-block";
+          };
+          mediaRecorder.start();
+          isRecording = true;
+          document.getElementById("genVideoBtn").textContent = "Recording... (Tap Stop)";
+        } catch (err) {
+          isRecording = false;
+        }
+      }
+
+      if ("speechSynthesis" in window) {
+        const lang = document.getElementById("langOption").value;
+        const gender = document.getElementById("voiceGender").value;
+        const utter = new SpeechSynthesisUtterance(text);
+        utter.lang = lang;
+        utter.pitch = gender === "male" ? 0.82 : 1.18;
+        utter.rate = 0.98;
+        const chosenVoice = pickBestVoice(lang, gender);
+        if (chosenVoice) utter.voice = chosenVoice;
+
+        isSpeaking = true;
+        utter.onend = () => {
+          isSpeaking = false;
+          setTimeout(() => {
+            if (mediaRecorder && mediaRecorder.state === "recording") {
+              mediaRecorder.stop();
+            }
+          }, 600);
+        };
+        utter.onerror = () => {
+          isSpeaking = false;
           if (mediaRecorder && mediaRecorder.state === "recording") {
             mediaRecorder.stop();
           }
-        }
-      };
-      u.onerror = () => { isPlayingAll = false; };
-      window.speechSynthesis.speak(u);
-    }
-
-    function speakCurrent(autoNext) {
-      if (!chunks.length) generateShorts();
-      if (!chunks.length) return;
-      isPlayingAll = autoNext;
-      speakAt(currentIdx, autoNext);
-    }
-
-    function playAllShorts() {
-      if (!chunks.length) generateShorts();
-      if (!chunks.length) return;
-      isPlayingAll = true;
-      speakAt(0, true);
-    }
-
-    function stepShort(delta) {
-      if (!chunks.length) return;
-      if ("speechSynthesis" in window) window.speechSynthesis.cancel();
-      isPlayingAll = false;
-      const next = (currentIdx + delta + chunks.length) % chunks.length;
-      highlightActive(next);
-    }
-
-    function toggleRecordShort() {
-      if (mediaRecorder && mediaRecorder.state === "recording") {
-        mediaRecorder.stop();
-        document.getElementById("recBtn").textContent = "⏺ Record Video";
-        return;
-      }
-      if (!chunks.length) generateShorts();
-      if (!chunks.length) return;
-
-      const canvas = document.getElementById("videoCanvas");
-      if (!canvas.captureStream || typeof MediaRecorder === "undefined") {
-        alert("આ બ્રાઉઝરમાં direct canvas video recording સપોર્ટ નથી. 9:16 preview ચાલુ રાખીને screen recorder વાપરો.");
-        return;
-      }
-
-      recordedBlobs = [];
-      const stream = canvas.captureStream(30);
-      const mimeTypes = ["video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm", "video/mp4"];
-      const supportedMime = mimeTypes.find(m => MediaRecorder.isTypeSupported(m)) || "";
-
-      try {
-        mediaRecorder = supportedMime
-          ? new MediaRecorder(stream, { mimeType: supportedMime })
-          : new MediaRecorder(stream);
-      } catch (e) {
-        alert("Video recorder શરૂ થઈ શક્યું નહીં: " + e.message);
-        return;
-      }
-
-      mediaRecorder.ondataavailable = (ev) => {
-        if (ev.data && ev.data.size > 0) recordedBlobs.push(ev.data);
-      };
-
-      mediaRecorder.onstop = () => {
-        const blob = new Blob(recordedBlobs, { type: supportedMime || "video/webm" });
-        const url = URL.createObjectURL(blob);
-        const dl = document.getElementById("downloadLink");
-        dl.href = url;
-        dl.download = supportedMime.includes("mp4") ? `short-${currentIdx + 1}.mp4` : `short-${currentIdx + 1}.webm`;
-        dl.textContent = `⬇ Download ${dl.download}`;
-        dl.style.display = "inline-block";
-        document.getElementById("recBtn").textContent = "⏺ Record Video";
-        showToast("Video તૈયાર થયો!");
-      };
-
-      mediaRecorder.start();
-      document.getElementById("recBtn").textContent = "⏹ Stop Rec";
-      speakAt(currentIdx, false);
-
-      setTimeout(() => {
-        if (mediaRecorder && mediaRecorder.state === "recording") {
-          mediaRecorder.stop();
-        }
-      }, 7000);
-    }
-
-    function copyText(str) {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(str).then(() => showToast("Copy થઈ ગયું!"));
+        };
+        window.speechSynthesis.speak(utter);
       } else {
-        const ta = document.createElement("textarea");
-        ta.value = str;
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand("copy");
-        document.body.removeChild(ta);
-        showToast("Copy થઈ ગયું!");
+        isSpeaking = true;
+        setTimeout(() => {
+          isSpeaking = false;
+          if (mediaRecorder && mediaRecorder.state === "recording") {
+            mediaRecorder.stop();
+          }
+        }, 6000);
       }
-    }
-
-    function generateShorts() {
-      stopAll();
-      const raw = document.getElementById("storyInput").value.trim();
-      const out = document.getElementById("output");
-      const count = parseInt(document.getElementById("countSelect").value, 10) || 3;
-      out.innerHTML = "";
-      chunks = [];
-
-      if (!raw) {
-        document.getElementById("canvasWrap").style.display = "none";
-        out.innerHTML = '<div class="card">કૃપા કરીને text લખો અથવા Sample બટન દબાવો.</div>';
-        return;
-      }
-
-      let parts = raw.split(/(?<=[.!?।])\s+|\n+/).map(s => s.trim()).filter(Boolean);
-      if (parts.length < count) {
-        const words = raw.split(/\s+/);
-        const wStep = Math.max(1, Math.ceil(words.length / count));
-        parts = [];
-        for (let i = 0; i < words.length; i += wStep) {
-          parts.push(words.slice(i, i + wStep).join(" "));
-        }
-      }
-
-      const step = Math.max(1, Math.ceil(parts.length / count));
-      for (let i = 0; i < parts.length; i += step) {
-        const piece = parts.slice(i, i + step).join(" ");
-        if (piece) chunks.push(piece);
-      }
-
-      document.getElementById("canvasWrap").style.display = "flex";
-      startCanvasLoop();
-
-      chunks.forEach((piece, idx) => {
-        const card = document.createElement("div");
-        card.className = "card";
-        card.innerHTML = `
-          <div class="tag">Short #${idx + 1}</div>
-          <div class="card-text">${piece}</div>
-          <div class="card-actions">
-            <button class="speak-btn" onclick="speakSpecific(${idx})">▶ Speak</button>
-            <button class="copy-btn" onclick="copyText(${JSON.stringify(piece)})">Copy</button>
-          </div>
-        `;
-        out.appendChild(card);
-      });
-
-      highlightActive(0);
-    }
-
-    function speakSpecific(idx) {
-      isPlayingAll = false;
-      speakAt(idx, false);
     }
   </script>
 </body>
