@@ -54,7 +54,7 @@
 <body>
   <div class="container">
     <h1>AI Cartoon Video Generator</h1>
-    <p class="sub">Story mujab multiple characters aavshe, vat karshe ane acting karshe — je line bole te j screen par dekhashe.</p>
+    <p class="sub">Story mujab characters, acting, gusso/shanti voice ane line-by-line screen text sathe 9:16 video.</p>
 
     <div class="grid-2">
       <div>
@@ -75,12 +75,12 @@
     </div>
 
     <label for="storyText">Story / Text</label>
-    <textarea id="storyText" placeholder="અહીં વાર્તા લખો... પિતા, બાળક, દુકાનદાર, ગુસ્સો કે શાંતિ મુજબ પાત્ર અને એક્ટિંગ બદલાશે."></textarea>
+    <textarea id="storyText" placeholder="અહીં વાર્તા લખો... જે લાઇન બોલાશે તે સ્ક્રીન પર આવશે અને પાત્ર/મૂડ મુજબ એક્ટિંગ થશે."></textarea>
 
     <button class="btn-gen" id="genVideoBtn" onclick="generateCartoonVideo()">3. Generate Video</button>
     <button class="btn-stop" onclick="stopCartoonVideo()">Stop / Reset</button>
 
-    <div class="info-box" id="voiceInfo">Voice check thai rahyu che...</div>
+    <div class="info-box" id="voiceInfo">Ready</div>
 
     <div class="stage-wrap" id="stageWrap">
       <canvas id="cartoonCanvas" width="720" height="1280"></canvas>
@@ -98,11 +98,12 @@
     let activeLineIdx = 0;
     let activeLineText = "";
     let activeMood = "calm";
-    let speakerSide = "left"; // "left" or "right"
+    let speakerSide = "left";
     let leftRole = "father";
     let rightRole = "child";
     let activeScene = "house";
-    let fallbackTimer = null;
+    let nextLineTimer = null;
+    let lineToken = 0;
 
     function detectScene(line) {
       const t = line.toLowerCase();
@@ -124,7 +125,7 @@
       } else if (hasChild && hasFather) {
         leftRole = "father";
         rightRole = "child";
-        speakerSide = t.includes("बेटा") || t.includes("बेटी") || t.includes("બાળક") || t.includes("દીકરી") ? "right" : "left";
+        speakerSide = (t.includes("बेटा") || t.includes("बेटी") || t.includes("બાળક") || t.includes("દીકરી")) ? "right" : "left";
       } else if (hasChild) {
         leftRole = gender === "male" ? "father" : "adult";
         rightRole = "child";
@@ -165,131 +166,12 @@
     }
 
     function pickBestVoice(langCode, gender) {
-      if (!("speechSynthesis" in window)) return null;
-      const voices = window.speechSynthesis.getVoices() || [];
-      const prefix = langCode.split("-")[0].toLowerCase();
-      const langVoices = voices.filter(v => v.lang && v.lang.toLowerCase().startsWith(prefix));
-      const pool = langVoices.length ? langVoices : voices;
-      if (!pool.length) return null;
+      try {
+        if (!("speechSynthesis" in window)) return null;
+        const voices = window.speechSynthesis.getVoices() || [];
+        if (!voices.length) return null;
+        const prefix = langCode.split("-")[0].toLowerCase();
+        const langVoices = voices.filter(v => v.lang && v.lang.toLowerCase().startsWith(prefix));
+        const pool = langVoices.length ? langVoices : voices;
 
-      const femaleHints = ["female", "woman", "girl", "heera", "swara", "lekha", "priya", "neerja", "aditi", "google हिन्दी", "google ગુજરાતી"];
-      const maleHints = ["male", "man", "boy", "ravi", "prabhat", "hemant", "rahul", "arjun", "aarav"];
-
-      const hints = gender === "male" ? maleHints : femaleHints;
-      const matched = pool.find(v => hints.some(h => v.name.toLowerCase().includes(h)));
-      if (matched) return matched;
-
-      if (gender === "male" && pool.length > 1) return pool[1];
-      return pool[0];
-    }
-
-    function updateVoiceInfo() {
-      const lang = document.getElementById("langOption").value;
-      const gender = document.getElementById("voiceGender").value;
-      const v = pickBestVoice(lang, gender);
-      const vName = v ? `${v.name} (${v.lang})` : "Default System Voice";
-      document.getElementById("voiceInfo").textContent =
-        `Voice: ${vName} | Multi-Character Acting + Gusso/Shanti + Line Sync`;
-    }
-
-    if ("speechSynthesis" in window) {
-      window.speechSynthesis.onvoiceschanged = updateVoiceInfo;
-    }
-    updateVoiceInfo();
-
-    function splitIntoLines(rawText) {
-      const rawLines = rawText
-        .split(/(?<=[.!?।])\s+|\n+/)
-        .map(s => s.trim())
-        .filter(Boolean);
-
-      const result = [];
-      for (const line of rawLines) {
-        if (line.length <= 85) {
-          result.push(line);
-        } else {
-          const words = line.split(/\s+/);
-          let cur = "";
-          for (const w of words) {
-            const next = cur ? cur + " " + w : w;
-            if (next.length > 82 && cur) {
-              result.push(cur);
-              cur = w;
-            } else {
-              cur = next;
-            }
-          }
-          if (cur) result.push(cur);
-        }
-      }
-      return result.length ? result : [rawText.trim()];
-    }
-
-    function wrapCanvasText(ctx, text, maxWidth) {
-      const words = text.trim().split(/\s+/).filter(Boolean);
-      const lines = [];
-      let cur = "";
-      for (const w of words) {
-        const test = cur ? cur + " " + w : w;
-        if (ctx.measureText(test).width > maxWidth && cur) {
-          lines.push(cur);
-          cur = w;
-        } else {
-          cur = test;
-        }
-      }
-      if (cur) lines.push(cur);
-      return lines.slice(0, 4);
-    }
-
-    function drawBackground(ctx, w, h, isAngry) {
-      if (activeScene === "outside") {
-        const sky = ctx.createLinearGradient(0, 0, 0, h * 0.65);
-        sky.addColorStop(0, isAngry ? "#7f1d1d" : "#0284c7");
-        sky.addColorStop(1, isAngry ? "#450a0a" : "#bae6fd");
-        ctx.fillStyle = sky;
-        ctx.fillRect(0, 0, w, h * 0.65);
-
-        ctx.fillStyle = "#166534";
-        ctx.fillRect(0, h * 0.65, w, h * 0.35);
-      } else {
-        ctx.fillStyle = isAngry ? "#450a0a" : "#1e293b";
-        ctx.fillRect(0, 0, w, h * 0.66);
-
-        ctx.fillStyle = "#334155";
-        ctx.fillRect(0, h * 0.66, w, h * 0.34);
-
-        ctx.fillStyle = "#0f172a";
-        ctx.fillRect(275, 130, 170, 160);
-        ctx.strokeStyle = "#cbd5e1";
-        ctx.lineWidth = 7;
-        ctx.strokeRect(275, 130, 170, 160);
-      }
-
-      if (activeScene === "shop") {
-        ctx.fillStyle = "#451a03";
-        ctx.fillRect(50, 565, w - 100, 170);
-        ctx.fillStyle = "#78350f";
-        ctx.fillRect(40, 550, w - 80, 22);
-      }
-    }
-
-    function drawCharacter(ctx, t, opts) {
-      const { cx, baseY, role, isTalking, isAngry, gender } = opts;
-      const isChild = role === "child";
-      const isShop = role === "shopkeeper";
-      const headR = isChild ? 68 : 78;
-
-      const shakeX = isAngry && isTalking ? Math.sin(t / 32) * 6 : 0;
-      const bobY = isTalking ? Math.sin(t / (isAngry ? 85 : 165)) * (isAngry ? 10 : 5) : Math.sin(t / 520) * 2.5;
-      const armSwing = isTalking ? (isAngry ? Math.sin(t / 95) * 0.6 : Math.sin(t / 185) * 0.25) : 0.05;
-
-      const x = cx + shakeX;
-      const y = baseY + bobY;
-
-      // Active speaker glow ring
-      if (isTalking) {
-        ctx.strokeStyle = isAngry ? "#f87171" : "#38bdf8";
-        ctx.lineWidth = 5;
-        ctx.beginPath();
-        ctx.arc(x, y,
+        const femaleHints = ["female", "woman", "girl", "he
