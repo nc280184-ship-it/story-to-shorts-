@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Story Acting & Voice Player</title>
+  <title>Story Acting & Voice Studio</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
-    body { background: #0b1120; color: #f8fafc; min-height: 100vh; padding: 14px; }
-    .container { max-width: 520px; margin: 0 auto; }
+    body { background: #090d16; color: #f8fafc; min-height: 100vh; padding: 14px; }
+    .container { max-width: 540px; margin: 0 auto; }
     h1 { font-size: 1.55rem; color: #38bdf8; margin-bottom: 4px; }
     p.sub { color: #94a3b8; font-size: 0.88rem; margin-bottom: 12px; line-height: 1.4; }
 
@@ -18,35 +18,38 @@
       background: #1e293b; color: #f8fafc; font-size: 0.95rem; margin-bottom: 10px;
     }
     select { padding: 10px 12px; }
-    textarea { height: 120px; padding: 12px; resize: vertical; line-height: 1.5; }
+    textarea { height: 118px; padding: 12px; resize: vertical; line-height: 1.5; }
 
-    .btn-row { display: flex; gap: 8px; margin-bottom: 12px; }
+    .btn-row { display: grid; grid-template-columns: 2fr 1fr; gap: 8px; margin-bottom: 8px; }
+    .nav-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
     .btn-play {
-      flex: 2; padding: 14px; border: none; border-radius: 12px;
-      background: #22c55e; color: #052e16; font-weight: 800; font-size: 1rem; cursor: pointer;
+      padding: 13px; border: none; border-radius: 12px;
+      background: #22c55e; color: #052e16; font-weight: 800; font-size: 0.98rem; cursor: pointer;
     }
     .btn-stop {
-      flex: 1; padding: 14px; border: none; border-radius: 12px;
-      background: #ef4444; color: #ffffff; font-weight: 700; font-size: 0.95rem; cursor: pointer;
+      padding: 13px; border: none; border-radius: 12px;
+      background: #ef4444; color: #ffffff; font-weight: 700; font-size: 0.92rem; cursor: pointer;
+    }
+    .btn-step {
+      padding: 10px; border: 1px solid #334155; border-radius: 10px;
+      background: #111827; color: #e2e8f0; font-weight: 700; font-size: 0.85rem; cursor: pointer;
     }
 
-    .stage-wrap {
-      display: flex; flex-direction: column; align-items: center; margin-top: 6px;
-    }
+    .stage-wrap { display: flex; flex-direction: column; align-items: center; margin-top: 4px; }
     canvas#stageCanvas {
       width: 100%; max-width: 330px; aspect-ratio: 9 / 16;
       border-radius: 20px; border: 2px solid #38bdf8; background: #0f172a;
-      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.55);
+      box-shadow: 0 14px 32px rgba(0, 0, 0, 0.6);
     }
-    .tip {
-      margin-top: 10px; font-size: 0.8rem; color: #94a3b8; text-align: center; line-height: 1.4;
+    .status-bar {
+      margin-top: 8px; font-size: 0.82rem; color: #cbd5e1; text-align: center;
     }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1>Story Acting & Voice</h1>
-    <p class="sub">Story mujab characters, acting, gusso/shanti/emotional voice ane screen par line-by-line text.</p>
+    <h1>Story Acting & Voice Studio</h1>
+    <p class="sub">વાર્તા મુજબ પાત્રો, એક્ટિંગ, ગુસ્સો/શાંતિ/ભાવુક વૉઇસ અને સ્ક્રીન પર લાઇન-બાય-લાઇન ટેક્સ્ટ.</p>
 
     <div class="grid-2">
       <div>
@@ -66,16 +69,21 @@
     </div>
 
     <label for="storyBox">તમારી વાર્તા (Story)</label>
-    <textarea id="storyBox" placeholder="અહીં વાર્તા લખો... દરેક લાઇન મુજબ પાત્ર, એક્ટિંગ અને અવાજ બદલાશે."></textarea>
+    <textarea id="storyBox" placeholder="અહીં વાર્તા લખો... દરેક વાક્ય કે લાઇન મુજબ પાત્ર અને અવાજ બદલાશે."></textarea>
 
     <div class="btn-row">
       <button class="btn-play" id="playBtn" onclick="startStory()">▶ Play Acting & Voice</button>
       <button class="btn-stop" onclick="stopStory()">⏹ Stop</button>
     </div>
 
+    <div class="nav-row">
+      <button class="btn-step" onclick="jumpLine(-1)">⬅ Previous Line</button>
+      <button class="btn-step" onclick="jumpLine(1)">Next Line ➡</button>
+    </div>
+
     <div class="stage-wrap">
       <canvas id="stageCanvas" width="720" height="1280"></canvas>
-      <div class="tip">Video save karva mate phone no Screen Recorder chalu karine ▶ Play dabavo.</div>
+      <div class="status-bar" id="statusBar">Ready — વાર્તા લખીને Play દબાવો</div>
     </div>
   </div>
 
@@ -93,15 +101,18 @@
     let stepTimer = null;
     let runId = 0;
 
+    function setStatus(msg) {
+      const el = document.getElementById("statusBar");
+      if (el) el.textContent = msg;
+    }
+
     function analyzeLine(line, idx, gender) {
       const t = line.toLowerCase();
 
-      // Scene detection
       if (t.includes("दुकान") || t.includes("dukan") || t.includes("દુકાન")) sceneType = "shop";
       else if (t.includes("बाहर") || t.includes("गाँव") || t.includes("सड़क") || t.includes("ગામ") || t.includes("બહાર")) sceneType = "outside";
       else sceneType = "house";
 
-      // Mood detection
       const angryKeys = ["गुस्सा", "गुस्से", "चिल्ला", "नफरत", "बकवास", "धमकी", "क्रोध", "मूर्ख", "gusso", "gusse", "chilla", "ગુસ્સો", "ગુસ્સે", "!"];
       const emoKeys = ["प्यार", "त्याग", "बीमार", "आंसू", "रोने", "दिल", "माफ", "दुख", "દુઃખ", "પ્રેમ", "ત્યાગ", "આંસુ", "બીમાર"];
 
@@ -109,7 +120,6 @@
       else if (emoKeys.some(k => t.includes(k))) currentMood = "emotional";
       else currentMood = "calm";
 
-      // Character role & speaker side
       const hasChild = ["बच्चा", "बेटा", "बेटी", "छोटा", "બાળક", "દીકરો", "દીકરી", "નાનું"].some(k => t.includes(k));
       const hasFather = ["पिता", "पापा", "father", "પિતા", "પપ્પા"].some(k => t.includes(k));
       const hasMother = ["माँ", "माता", "मम्मी", "માતા", "મમ્મી"].some(k => t.includes(k));
@@ -141,7 +151,7 @@
 
     function getVoiceParams(mood, gender, side) {
       let pitch = gender === "male" ? 0.82 : 1.12;
-      let rate = 0.95;
+      let rate = 0.94;
 
       if (side === "right" && rightRole === "child") {
         pitch = 1.32;
@@ -249,7 +259,6 @@
         ctx.fillStyle = "#334155";
         ctx.fillRect(0, h * 0.65, w, h * 0.35);
 
-        // Window
         ctx.fillStyle = "#0f172a";
         ctx.fillRect(275, 115, 170, 150);
         ctx.strokeStyle = "#cbd5e1";
@@ -286,13 +295,11 @@
         ctx.stroke();
       }
 
-      // Body
       const outfit = isChild ? "#f59e0b" : (role === "shopkeeper" ? "#059669" : (isFemale ? "#ec4899" : "#0284c7"));
       ctx.fillStyle = outfit;
       roundRect(ctx, x - 64, y + headR - 10, 128, isChild ? 110 : 145, 32);
       ctx.fill();
 
-      // Arms
       ctx.save();
       ctx.translate(x - 64, y + headR + 12);
       ctx.rotate(-0.55 + armMove);
@@ -309,13 +316,11 @@
       ctx.fill();
       ctx.restore();
 
-      // Head
       ctx.fillStyle = "#fed7aa";
       ctx.beginPath();
       ctx.arc(x, y, headR, 0, Math.PI * 2);
       ctx.fill();
 
-      // Hair
       ctx.fillStyle = "#1e1b4b";
       ctx.beginPath();
       ctx.arc(x, y - 12, headR + 2, Math.PI * 1.05, Math.PI * 1.95);
@@ -327,7 +332,6 @@
         ctx.fill();
       }
 
-      // Eyebrows (Acting expressions)
       ctx.strokeStyle = "#1e1b4b";
       ctx.lineWidth = 5.5;
       ctx.lineCap = "round";
@@ -350,14 +354,12 @@
       }
       ctx.stroke();
 
-      // Eyes
       ctx.fillStyle = "#0f172a";
       ctx.beginPath();
       ctx.arc(x - 27, y - 8, isChild ? 10 : 9, 0, Math.PI * 2);
       ctx.arc(x + 27, y - 8, isChild ? 10 : 9, 0, Math.PI * 2);
       ctx.fill();
 
-      // Tear drop when emotional
       if (active && mood === "emotional") {
         ctx.fillStyle = "#38bdf8";
         ctx.beginPath();
@@ -365,7 +367,6 @@
         ctx.fill();
       }
 
-      // Mouth
       const mouthH = active ? 6 + Math.abs(Math.sin(t / (mood === "angry" ? 75 : 120))) * 17 : 4;
       ctx.fillStyle = "#991b1b";
       ctx.beginPath();
@@ -397,7 +398,6 @@
         mood: currentMood
       });
 
-      // Subtitle box
       const accent = currentMood === "angry" ? "#f87171" : (currentMood === "emotional" ? "#c084fc" : "#38bdf8");
       ctx.fillStyle = "rgba(15, 23, 42, 0.92)";
       roundRect(ctx, 36, 760, w - 72, 430, 26);
@@ -438,6 +438,7 @@
         if ("speechSynthesis" in window) window.speechSynthesis.cancel();
       } catch (e) {}
       document.getElementById("playBtn").textContent = "▶ Play Acting & Voice";
+      setStatus("Stopped");
     }
 
     function playLine(idx, token) {
@@ -446,4 +447,80 @@
       if (idx >= lines.length) {
         playing = false;
         speaking = false;
-        currentText = "વાર્તા પૂર્ણ
+        currentText = "વાર્તા પૂર્ણ થઈ!";
+        document.getElementById("playBtn").textContent = "▶ Play Again";
+        setStatus("Completed all lines");
+        return;
+      }
+
+      currentIdx = idx;
+      currentText = lines[idx];
+      const lang = document.getElementById("langSelect").value;
+      const gender = document.getElementById("genderSelect").value;
+
+      analyzeLine(currentText, idx, gender);
+      const voiceCfg = getVoiceParams(currentMood, gender, speakerSide);
+      speaking = true;
+      setStatus(`Line ${idx + 1}/${lines.length} • Mood: ${currentMood.toUpperCase()}`);
+
+      let advanced = false;
+      const advance = () => {
+        if (advanced || !playing || token !== runId) return;
+        advanced = true;
+        if (stepTimer) {
+          clearTimeout(stepTimer);
+          stepTimer = null;
+        }
+        speaking = false;
+        playLine(idx + 1, token);
+      };
+
+      const safeDuration = Math.max(2500, currentText.length * 120) + 1200;
+      stepTimer = setTimeout(advance, safeDuration);
+
+      try {
+        if ("speechSynthesis" in window) {
+          window.speechSynthesis.cancel();
+          const u = new SpeechSynthesisUtterance(currentText);
+          u.lang = lang;
+          u.pitch = voiceCfg.pitch;
+          u.rate = voiceCfg.rate;
+          const v = pickVoice(lang, gender);
+          if (v) u.voice = v;
+
+          u.onend = advance;
+          u.onerror = advance;
+          window.speechSynthesis.speak(u);
+        }
+      } catch (e) {}
+    }
+
+    function startStory() {
+      const raw = document.getElementById("storyBox").value.trim();
+      if (!raw) {
+        alert("કૃપા કરીને પહેલા વાર્તા લખો.");
+        return;
+      }
+
+      stopStory();
+      const token = ++runId;
+      lines = splitLines(raw);
+      playing = true;
+      document.getElementById("playBtn").textContent = "Playing...";
+      playLine(0, token);
+    }
+
+    function jumpLine(delta) {
+      const raw = document.getElementById("storyBox").value.trim();
+      if (!raw) return;
+      if (!lines.length) lines = splitLines(raw);
+      const target = Math.max(0, Math.min(lines.length - 1, currentIdx + delta));
+      stopStory();
+      const token = ++runId;
+      playing = true;
+      document.getElementById("playBtn").textContent = "Playing...";
+      playLine(target, token);
+    }
+  </script>
+</body>
+</html>
