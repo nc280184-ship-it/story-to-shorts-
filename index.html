@@ -93,6 +93,7 @@
     let isSpeaking = false;
     let mediaRecorder = null;
     let chunks = [];
+    let activeMime = "";
     let animFrame = null;
     let linesQueue = [];
     let activeLineIdx = 0;
@@ -174,4 +175,478 @@
         const langVoices = voices.filter(v => v.lang && v.lang.toLowerCase().startsWith(prefix));
         const pool = langVoices.length ? langVoices : voices;
 
-        const femaleHints = ["female", "woman", "girl", "he
+        const femaleHints = ["female", "woman", "girl", "heera", "swara", "lekha", "priya", "neerja", "aditi", "google हिन्दी", "google ગુજરાતી"];
+        const maleHints = ["male", "man", "boy", "ravi", "prabhat", "hemant", "rahul", "arjun", "aarav"];
+
+        const hints = gender === "male" ? maleHints : femaleHints;
+        const matched = pool.find(v => hints.some(h => v.name.toLowerCase().includes(h)));
+        if (matched) return matched;
+
+        if (gender === "male" && pool.length > 1) return pool[1];
+        return pool[0];
+      } catch (e) {
+        return null;
+      }
+    }
+
+    function updateVoiceInfo() {
+      const lang = document.getElementById("langOption").value;
+      const gender = document.getElementById("voiceGender").value;
+      const v = pickBestVoice(lang, gender);
+      const vName = v ? `${v.name} (${v.lang})` : "Default System Voice";
+      document.getElementById("voiceInfo").textContent =
+        `Ready • Voice: ${vName} • ${gender.toUpperCase()} • Auto Character & Mood`;
+    }
+
+    try {
+      if ("speechSynthesis" in window) {
+        window.speechSynthesis.onvoiceschanged = updateVoiceInfo;
+      }
+    } catch (e) {}
+    updateVoiceInfo();
+
+    function splitIntoLines(rawText) {
+      const rawLines = rawText
+        .split(/(?<=[.!?।])\s+|\n+/)
+        .map(s => s.trim())
+        .filter(Boolean);
+
+      const result = [];
+      for (const line of rawLines) {
+        if (line.length <= 85) {
+          result.push(line);
+        } else {
+          const words = line.split(/\s+/);
+          let cur = "";
+          for (const w of words) {
+            const next = cur ? cur + " " + w : w;
+            if (next.length > 82 && cur) {
+              result.push(cur);
+              cur = w;
+            } else {
+              cur = next;
+            }
+          }
+          if (cur) result.push(cur);
+        }
+      }
+      return result.length ? result : [rawText.trim()];
+    }
+
+    function wrapCanvasText(ctx, text, maxWidth) {
+      const words = text.trim().split(/\s+/).filter(Boolean);
+      const lines = [];
+      let cur = "";
+      for (const w of words) {
+        const test = cur ? cur + " " + w : w;
+        if (ctx.measureText(test).width > maxWidth && cur) {
+          lines.push(cur);
+          cur = w;
+        } else {
+          cur = test;
+        }
+      }
+      if (cur) lines.push(cur);
+      return lines.slice(0, 4);
+    }
+
+    function drawRoundedBox(ctx, x, y, w, h, r) {
+      const radius = Math.min(r, w / 2, h / 2);
+      ctx.beginPath();
+      ctx.moveTo(x + radius, y);
+      ctx.arcTo(x + w, y, x + w, y + h, radius);
+      ctx.arcTo(x + w, y + h, x, y + h, radius);
+      ctx.arcTo(x, y + h, x, y, radius);
+      ctx.arcTo(x, y, x + w, y, radius);
+      ctx.closePath();
+    }
+
+    function drawBackground(ctx, w, h, isAngry) {
+      if (activeScene === "outside") {
+        const sky = ctx.createLinearGradient(0, 0, 0, h * 0.65);
+        sky.addColorStop(0, isAngry ? "#7f1d1d" : "#0284c7");
+        sky.addColorStop(1, isAngry ? "#450a0a" : "#bae6fd");
+        ctx.fillStyle = sky;
+        ctx.fillRect(0, 0, w, h * 0.65);
+
+        ctx.fillStyle = "#166534";
+        ctx.fillRect(0, h * 0.65, w, h * 0.35);
+      } else {
+        ctx.fillStyle = isAngry ? "#450a0a" : "#1e293b";
+        ctx.fillRect(0, 0, w, h * 0.66);
+
+        ctx.fillStyle = "#334155";
+        ctx.fillRect(0, h * 0.66, w, h * 0.34);
+
+        ctx.fillStyle = "#0f172a";
+        ctx.fillRect(275, 130, 170, 160);
+        ctx.strokeStyle = "#cbd5e1";
+        ctx.lineWidth = 7;
+        ctx.strokeRect(275, 130, 170, 160);
+      }
+
+      if (activeScene === "shop") {
+        ctx.fillStyle = "#451a03";
+        ctx.fillRect(50, 565, w - 100, 170);
+        ctx.fillStyle = "#78350f";
+        ctx.fillRect(40, 550, w - 80, 22);
+      }
+    }
+
+    function drawCharacter(ctx, t, opts) {
+      const { cx, baseY, role, isTalking, isAngry, gender } = opts;
+      const isChild = role === "child";
+      const isShop = role === "shopkeeper";
+      const headR = isChild ? 68 : 78;
+
+      const shakeX = isAngry && isTalking ? Math.sin(t / 32) * 6 : 0;
+      const bobY = isTalking ? Math.sin(t / (isAngry ? 85 : 165)) * (isAngry ? 10 : 5) : Math.sin(t / 520) * 2.5;
+      const armSwing = isTalking ? (isAngry ? Math.sin(t / 95) * 0.6 : Math.sin(t / 185) * 0.25) : 0.05;
+
+      const x = cx + shakeX;
+      const y = baseY + bobY;
+
+      if (isTalking) {
+        ctx.strokeStyle = isAngry ? "#f87171" : "#38bdf8";
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        ctx.arc(x, y, headR + 14, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
+      const bodyColor = isChild ? "#f59e0b" : (isShop ? "#059669" : (role === "father" ? "#0284c7" : "#ec4899"));
+      ctx.fillStyle = bodyColor;
+      drawRoundedBox(ctx, x - 66, y + headR - 10, 132, isChild ? 115 : 145, 34);
+      ctx.fill();
+
+      ctx.save();
+      ctx.translate(x - 66, y + headR + 12);
+      ctx.rotate(-0.55 + armSwing);
+      ctx.fillStyle = "#fdba74";
+      drawRoundedBox(ctx, -18, 0, 34, 95, 16);
+      ctx.fill();
+      ctx.restore();
+
+      ctx.save();
+      ctx.translate(x + 66, y + headR + 12);
+      ctx.rotate(0.45 - armSwing);
+      ctx.fillStyle = "#fdba74";
+      drawRoundedBox(ctx, -16, 0, 34, 95, 16);
+      ctx.fill();
+      ctx.restore();
+
+      ctx.fillStyle = "#fed7aa";
+      ctx.beginPath();
+      ctx.arc(x, y, headR, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = "#1e1b4b";
+      ctx.beginPath();
+      ctx.arc(x, y - 12, headR + 2, Math.PI * 1.05, Math.PI * 1.95);
+      ctx.fill();
+
+      if (isShop) {
+        ctx.fillStyle = "#eab308";
+        drawRoundedBox(ctx, x - 70, y - headR - 10, 140, 22, 10);
+        ctx.fill();
+      } else if (!isChild && gender === "female") {
+        drawRoundedBox(ctx, x - headR - 4, y - 14, 26, 95, 12);
+        ctx.fill();
+        drawRoundedBox(ctx, x + headR - 22, y - 14, 26, 95, 12);
+        ctx.fill();
+      }
+
+      ctx.strokeStyle = "#1e1b4b";
+      ctx.lineWidth = 5.5;
+      ctx.lineCap = "round";
+      if (isAngry) {
+        ctx.beginPath();
+        ctx.moveTo(x - 42, y - 26);
+        ctx.lineTo(x - 14, y - 12);
+        ctx.moveTo(x + 42, y - 26);
+        ctx.lineTo(x + 14, y - 12);
+        ctx.stroke();
+      } else {
+        ctx.beginPath();
+        ctx.moveTo(x - 40, y - 20);
+        ctx.lineTo(x - 16, y - 20);
+        ctx.moveTo(x + 40, y - 20);
+        ctx.lineTo(x + 16, y - 20);
+        ctx.stroke();
+      }
+
+      const blink = Math.sin(t / 950) > 0.96;
+      ctx.fillStyle = "#0f172a";
+      if (blink) {
+        ctx.fillRect(x - 38, y - 8, 18, 4);
+        ctx.fillRect(x + 20, y - 8, 18, 4);
+      } else {
+        ctx.beginPath();
+        ctx.arc(x - 27, y - 8, isChild ? 10 : 9, 0, Math.PI * 2);
+        ctx.arc(x + 27, y - 8, isChild ? 10 : 9, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = "#ffffff";
+        ctx.beginPath();
+        ctx.arc(x - 30, y - 11, 3.5, 0, Math.PI * 2);
+        ctx.arc(x + 24, y - 11, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      const mouthRY = isTalking ? 6 + Math.abs(Math.sin(t / (isAngry ? 75 : 120))) * 17 : 4;
+      ctx.fillStyle = "#991b1b";
+      ctx.beginPath();
+      ctx.ellipse(x, y + 30, 17, mouthRY, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    function drawCartoonScene(t) {
+      const canvas = document.getElementById("cartoonCanvas");
+      if (!canvas) return;
+      const ctx = canvas.getContext("2d");
+      const w = canvas.width;
+      const h = canvas.height;
+      const gender = document.getElementById("voiceGender").value;
+
+      const isAngry = activeMood === "angry";
+      const accentColor = isAngry ? "#f87171" : "#38bdf8";
+
+      drawBackground(ctx, w, h, isAngry);
+
+      drawCharacter(ctx, t, {
+        cx: 215,
+        baseY: 430,
+        role: leftRole,
+        isTalking: isSpeaking && speakerSide === "left",
+        isAngry: isAngry && speakerSide === "left",
+        gender
+      });
+
+      drawCharacter(ctx, t, {
+        cx: 505,
+        baseY: rightRole === "child" ? 465 : 430,
+        role: rightRole,
+        isTalking: isSpeaking && speakerSide === "right",
+        isAngry: isAngry && speakerSide === "right",
+        gender
+      });
+
+      ctx.fillStyle = "rgba(15, 23, 42, 0.92)";
+      drawRoundedBox(ctx, 38, 765, w - 76, 420, 28);
+      ctx.fill();
+
+      ctx.strokeStyle = accentColor;
+      ctx.lineWidth = 3;
+      ctx.stroke();
+
+      ctx.fillStyle = accentColor;
+      ctx.font = "bold 23px system-ui, sans-serif";
+      ctx.textAlign = "center";
+      const speakerName = (speakerSide === "left" ? leftRole : rightRole).toUpperCase();
+      const moodLabel = isAngry ? "GUSSO" : "SHANTI";
+      const badgeText = isRunning
+        ? `LINE ${activeLineIdx + 1}/${linesQueue.length} • ${speakerName} • ${moodLabel}`
+        : "DONE";
+      ctx.fillText(badgeText, w / 2, 818);
+
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "bold 38px system-ui, sans-serif";
+      const lines = wrapCanvasText(ctx, activeLineText || "", w - 120);
+      const startY = 892;
+      lines.forEach((l, i) => {
+        ctx.fillText(l, w / 2, startY + i * 56);
+      });
+    }
+
+    function startRenderLoop() {
+      if (animFrame) cancelAnimationFrame(animFrame);
+      const loop = (t) => {
+        drawCartoonScene(t);
+        animFrame = requestAnimationFrame(loop);
+      };
+      animFrame = requestAnimationFrame(loop);
+    }
+
+    function stopRecorderSafely() {
+      try {
+        if (mediaRecorder && mediaRecorder.state === "recording") {
+          mediaRecorder.stop();
+        }
+      } catch (e) {}
+    }
+
+    function stopCartoonVideo() {
+      lineToken++;
+      isRunning = false;
+      isSpeaking = false;
+      activeLineText = "";
+      if (nextLineTimer) {
+        clearTimeout(nextLineTimer);
+        nextLineTimer = null;
+      }
+      try {
+        if ("speechSynthesis" in window) {
+          window.speechSynthesis.cancel();
+        }
+      } catch (e) {}
+      stopRecorderSafely();
+      document.getElementById("genVideoBtn").textContent = "3. Generate Video";
+      drawCartoonScene(performance.now());
+    }
+
+    function finishAllLines() {
+      isRunning = false;
+      isSpeaking = false;
+      activeLineText = "";
+      document.getElementById("genVideoBtn").textContent = "3. Generate Video";
+      setTimeout(() => {
+        stopRecorderSafely();
+      }, 350);
+    }
+
+    function speakLine(idx, token) {
+      if (!isRunning || token !== lineToken) return;
+
+      if (idx >= linesQueue.length) {
+        finishAllLines();
+        return;
+      }
+
+      activeLineIdx = idx;
+      activeLineText = linesQueue[idx];
+      const lang = document.getElementById("langOption").value;
+      const gender = document.getElementById("voiceGender").value;
+
+      activeScene = detectScene(activeLineText);
+      detectCastForLine(activeLineText, idx, gender);
+      activeMood = detectMood(activeLineText);
+      const settings = getMoodSettings(activeMood, gender, speakerSide);
+
+      isSpeaking = true;
+      let movedNext = false;
+
+      const goNext = () => {
+        if (movedNext || !isRunning || token !== lineToken) return;
+        movedNext = true;
+        if (nextLineTimer) {
+          clearTimeout(nextLineTimer);
+          nextLineTimer = null;
+        }
+        isSpeaking = false;
+        speakLine(idx + 1, token);
+      };
+
+      const maxWaitMs = Math.max(2600, activeLineText.length * 125) + 1200;
+      nextLineTimer = setTimeout(goNext, maxWaitMs);
+
+      try {
+        if ("speechSynthesis" in window) {
+          window.speechSynthesis.cancel();
+          const utter = new SpeechSynthesisUtterance(activeLineText);
+          utter.lang = lang;
+          utter.pitch = settings.pitch;
+          utter.rate = settings.rate;
+
+          const chosen = pickBestVoice(lang, gender);
+          if (chosen) utter.voice = chosen;
+
+          utter.onend = goNext;
+          utter.onerror = goNext;
+
+          window.speechSynthesis.speak(utter);
+        }
+      } catch (e) {}
+    }
+
+    function setupVideoRecorder(canvas) {
+      chunks = [];
+      activeMime = "";
+      mediaRecorder = null;
+
+      try {
+        if (!canvas || !canvas.captureStream || typeof MediaRecorder === "undefined") {
+          return false;
+        }
+        const stream = canvas.captureStream(30);
+        const candidates = [
+          "video/webm;codecs=vp9",
+          "video/webm;codecs=vp8",
+          "video/webm",
+          "video/mp4"
+        ];
+        activeMime = candidates.find(type => MediaRecorder.isTypeSupported(type)) || "";
+
+        mediaRecorder = activeMime
+          ? new MediaRecorder(stream, { mimeType: activeMime })
+          : new MediaRecorder(stream);
+
+        mediaRecorder.ondataavailable = (e) => {
+          if (e.data && e.data.size > 0) {
+            chunks.push(e.data);
+          }
+        };
+
+        mediaRecorder.onstop = () => {
+          const dl = document.getElementById("downloadBtn");
+          if (!chunks.length) {
+            dl.style.display = "none";
+            return;
+          }
+          const mimeType = activeMime || (chunks[0] && chunks[0].type) || "video/webm";
+          const blob = new Blob(chunks, { type: mimeType });
+          if (!blob.size) {
+            dl.style.display = "none";
+            return;
+          }
+          const url = URL.createObjectURL(blob);
+          dl.href = url;
+          const ext = mimeType.includes("mp4") ? "mp4" : "webm";
+          dl.download = `cartoon-story.${ext}`;
+          dl.textContent = `⬇ Download Video (.${ext})`;
+          dl.style.display = "inline-block";
+        };
+
+        mediaRecorder.start(250);
+        return true;
+      } catch (e) {
+        mediaRecorder = null;
+        return false;
+      }
+    }
+
+    function generateCartoonVideo() {
+      const raw = document.getElementById("storyText").value.trim();
+      if (!raw) {
+        alert("કૃપા કરીને પહેલા Story / Text લખો.");
+        return;
+      }
+
+      stopCartoonVideo();
+      const myToken = ++lineToken;
+      linesQueue = splitIntoLines(raw);
+      activeLineIdx = 0;
+      activeLineText = linesQueue[0];
+      const gender = document.getElementById("voiceGender").value;
+
+      activeScene = detectScene(activeLineText);
+      detectCastForLine(activeLineText, 0, gender);
+      activeMood = detectMood(activeLineText);
+      isRunning = true;
+
+      document.getElementById("stageWrap").style.display = "flex";
+      document.getElementById("downloadBtn").style.display = "none";
+      document.getElementById("genVideoBtn").textContent = "Playing... (Tap Stop)";
+      startRenderLoop();
+
+      const canvas = document.getElementById("cartoonCanvas");
+      const recStarted = setupVideoRecorder(canvas);
+      if (!recStarted) {
+        document.getElementById("voiceInfo").textContent =
+          "Preview ચાલુ છે (આ બ્રાઉઝરમાં direct file export સપોર્ટ નથી; screen recorder વાપરી શકો છો).";
+      }
+
+      speakLine(0, myToken);
+    }
+  </script>
+</body>
+</html>
