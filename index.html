@@ -18,7 +18,7 @@
       background: #1e293b; color: #f8fafc; font-size: 0.96rem; margin-bottom: 12px;
     }
     select { padding: 11px 12px; }
-    textarea { height: 125px; padding: 13px; resize: vertical; line-height: 1.5; }
+    textarea { height: 135px; padding: 13px; resize: vertical; line-height: 1.5; }
 
     .btn-gen {
       width: 100%; padding: 14px; border: none; border-radius: 12px;
@@ -54,7 +54,7 @@
 <body>
   <div class="container">
     <h1>AI Cartoon Video Generator</h1>
-    <p class="sub">Je line bole te j video ma dekhashe, ane story mujab voice tone (Emotional, Gusso, Deep) badlashe.</p>
+    <p class="sub">Story ni darek line sathe screen par text badlashe ane gusso ke shanti pramane automatic voice tone aavshe.</p>
 
     <div class="grid-2">
       <div>
@@ -74,18 +74,8 @@
       </div>
     </div>
 
-    <div>
-      <label for="moodOption">Voice & Scene Mood</label>
-      <select id="moodOption" onchange="updateVoiceInfo()">
-        <option value="auto" selected>Auto (Story mujab)</option>
-        <option value="emotional">Emotional (ભાવુક)</option>
-        <option value="angry">Gusso (ગુસ્સો / તીવ્ર)</option>
-        <option value="deep">Deep & Calm (ગંભીર / શાંત)</option>
-      </select>
-    </div>
-
     <label for="storyText">Story / Text</label>
-    <textarea id="storyText" placeholder="અહીં તમારી વાર્તા લખો (Hindi અથવા Gujarati માં)..."></textarea>
+    <textarea id="storyText" placeholder="અહીં વાર્તા લખો... જે લાઇનમાં ગુસ્સો હશે તે ગુસ્સામાં અને શાંતિ હશે તે શાંતિથી બોલાશે."></textarea>
 
     <button class="btn-gen" id="genVideoBtn" onclick="generateCartoonVideo()">3. Generate Video</button>
     <button class="btn-stop" onclick="stopCartoonVideo()">Stop / Reset</button>
@@ -99,42 +89,49 @@
   </div>
 
   <script>
+    let isRunning = false;
     let isSpeaking = false;
-    let isRecording = false;
     let mediaRecorder = null;
     let chunks = [];
     let animFrame = null;
     let linesQueue = [];
     let activeLineIdx = 0;
     let activeLineText = "";
-    let activeMood = "neutral";
+    let activeMood = "calm";
+    let fallbackTimer = null;
 
-    function detectMoodFromLine(line, gender) {
-      const manual = document.getElementById("moodOption").value;
-      if (manual !== "auto") return manual;
-
+    function detectAutoMood(line) {
       const t = line.toLowerCase();
-      const angryWords = ["गुस्सा", "गुस्से", "चिल्ला", "नफरत", "बकवास", "gusso", "gusse", "krodh", "chilla", "!"];
-      const emotionalWords = ["प्यार", "त्याग", "बीमार", "आंसू", "रोने", "दिल", "माता", "पिता", "प्रेम", "pyar", "tyag", "bimar", "ansu", "dil", "prem"];
+      const angryWords = [
+        "गुस्सा", "गुस्से", "चिल्ला", "नफरत", "बकवास", "धमकी", "क्रोध", "मूर्ख", "क्यों", "हट",
+        "gusso", "gusse", "chilla", "nafrat", "krodh", "murkh", "!"
+      ];
+      const calmWords = [
+        "शांति", "शांत", "धीरे", "प्यार", "समझा", "माफ", "मुस्कुरा", "सुकून", "आराम", "नम्र",
+        "shanti", "shant", "dhire", "pyar", "samjha", "maaf", "sukoon"
+      ];
 
-      if (angryWords.some(w => t.includes(w))) return "angry";
-      if (emotionalWords.some(w => t.includes(w))) return "emotional";
-      if (gender === "male") return "deep";
-      return "neutral";
+      if (angryWords.some(w => t.includes(w)) || line.includes("!")) {
+        return "angry";
+      }
+      if (calmWords.some(w => t.includes(w))) {
+        return "calm";
+      }
+      return "calm";
     }
 
-    function getToneParams(mood, gender) {
-      const basePitch = gender === "male" ? 0.82 : 1.15;
+    function getMoodSettings(mood, gender) {
+      const isMale = gender === "male";
       if (mood === "angry") {
-        return { pitch: Math.min(1.4, basePitch + 0.14), rate: 1.12 };
+        return {
+          pitch: isMale ? 1.02 : 1.32,
+          rate: 1.15
+        };
       }
-      if (mood === "emotional") {
-        return { pitch: Math.max(0.68, basePitch - 0.08), rate: 0.88 };
-      }
-      if (mood === "deep") {
-        return { pitch: Math.max(0.58, basePitch - 0.22), rate: 0.90 };
-      }
-      return { pitch: basePitch, rate: 0.98 };
+      return {
+        pitch: isMale ? 0.72 : 1.02,
+        rate: 0.85
+      };
     }
 
     function pickBestVoice(langCode, gender) {
@@ -159,11 +156,10 @@
     function updateVoiceInfo() {
       const lang = document.getElementById("langOption").value;
       const gender = document.getElementById("voiceGender").value;
-      const moodSel = document.getElementById("moodOption").value;
       const v = pickBestVoice(lang, gender);
-      const info = document.getElementById("voiceInfo");
       const vName = v ? `${v.name} (${v.lang})` : "Default System Voice";
-      info.textContent = `Voice: ${vName} | Mode: ${moodSel.toUpperCase()} | Line-by-line sync ON`;
+      document.getElementById("voiceInfo").textContent =
+        `Voice: ${vName} | Auto Mood: Gusso / Shanti per line | Screen text sync: ON`;
     }
 
     if ("speechSynthesis" in window) {
@@ -172,34 +168,34 @@
     updateVoiceInfo();
 
     function splitIntoLines(rawText) {
-      const sentences = rawText
+      const rawLines = rawText
         .split(/(?<=[.!?।])\s+|\n+/)
         .map(s => s.trim())
         .filter(Boolean);
 
-      const finalLines = [];
-      for (const s of sentences) {
-        if (s.length <= 95) {
-          finalLines.push(s);
+      const result = [];
+      for (const line of rawLines) {
+        if (line.length <= 85) {
+          result.push(line);
         } else {
-          const words = s.split(/\s+/);
+          const words = line.split(/\s+/);
           let cur = "";
           for (const w of words) {
-            const test = cur ? cur + " " + w : w;
-            if (test.length > 90 && cur) {
-              finalLines.push(cur);
+            const next = cur ? cur + " " + w : w;
+            if (next.length > 82 && cur) {
+              result.push(cur);
               cur = w;
             } else {
-              cur = test;
+              cur = next;
             }
           }
-          if (cur) finalLines.push(cur);
+          if (cur) result.push(cur);
         }
       }
-      return finalLines.length ? finalLines : [rawText.trim()];
+      return result.length ? result : [rawText.trim()];
     }
 
-    function wrapLines(ctx, text, maxWidth) {
+    function wrapCanvasText(ctx, text, maxWidth) {
       const words = text.trim().split(/\s+/).filter(Boolean);
       const lines = [];
       let cur = "";
@@ -213,7 +209,7 @@
         }
       }
       if (cur) lines.push(cur);
-      return lines.slice(0, 5);
+      return lines.slice(0, 4);
     }
 
     function drawCartoonScene(t) {
@@ -224,40 +220,31 @@
       const h = canvas.height;
       const gender = document.getElementById("voiceGender").value;
 
-      let topBg = "#1e3a8a";
-      let borderAccent = "#38bdf8";
-      if (activeMood === "angry") {
-        topBg = "#7f1d1d";
-        borderAccent = "#f87171";
-      } else if (activeMood === "emotional") {
-        topBg = "#312e81";
-        borderAccent = "#c084fc";
-      } else if (activeMood === "deep") {
-        topBg = "#0f172a";
-        borderAccent = "#22c55e";
-      }
+      const isAngry = activeMood === "angry";
+      const topColor = isAngry ? "#7f1d1d" : "#1e3a8a";
+      const accentColor = isAngry ? "#f87171" : "#38bdf8";
 
-      const sky = ctx.createLinearGradient(0, 0, 0, h);
-      sky.addColorStop(0, topBg);
-      sky.addColorStop(0.64, "#0f172a");
-      sky.addColorStop(0.64, "#1e293b");
-      sky.addColorStop(1, "#090d16");
-      ctx.fillStyle = sky;
+      const bg = ctx.createLinearGradient(0, 0, 0, h);
+      bg.addColorStop(0, topColor);
+      bg.addColorStop(0.64, "#0f172a");
+      bg.addColorStop(0.64, "#1e293b");
+      bg.addColorStop(1, "#090d16");
+      ctx.fillStyle = bg;
       ctx.fillRect(0, 0, w, h);
 
-      const shakeX = activeMood === "angry" && isSpeaking ? Math.sin(t / 35) * 6 : 0;
-      const bob = isSpeaking ? Math.sin(t / 120) * 10 : Math.sin(t / 450) * 4;
-      const armWave = isSpeaking ? Math.sin(t / 140) * 0.35 : Math.sin(t / 500) * 0.08;
+      const shakeX = isAngry && isSpeaking ? Math.sin(t / 30) * 7 : 0;
+      const bob = isSpeaking ? Math.sin(t / (isAngry ? 85 : 170)) * (isAngry ? 12 : 6) : Math.sin(t / 500) * 3;
+      const armWave = isSpeaking ? Math.sin(t / (isAngry ? 100 : 190)) * (isAngry ? 0.45 : 0.18) : 0.05;
       const cx = w / 2 + shakeX;
-      const cy = 430 + bob;
+      const cy = 425 + bob;
 
-      // Torso
+      // Body
       ctx.fillStyle = gender === "male" ? "#0284c7" : "#ec4899";
       ctx.beginPath();
       ctx.roundRect(cx - 95, cy + 85, 190, 190, 45);
       ctx.fill();
 
-      // Arms
+      // Left arm
       ctx.save();
       ctx.translate(cx - 95, cy + 115);
       ctx.rotate(-0.5 + armWave);
@@ -267,6 +254,7 @@
       ctx.fill();
       ctx.restore();
 
+      // Right arm
       ctx.save();
       ctx.translate(cx + 95, cy + 115);
       ctx.rotate(0.4 - armWave);
@@ -294,30 +282,30 @@
         ctx.fill();
       }
 
-      // Eyebrows based on mood
+      // Eyebrows
       ctx.strokeStyle = "#1e1b4b";
       ctx.lineWidth = 7;
       ctx.lineCap = "round";
-      if (activeMood === "angry") {
+      if (isAngry) {
         ctx.beginPath();
-        ctx.moveTo(cx - 56, cy - 34);
-        ctx.lineTo(cx - 22, cy - 20);
-        ctx.moveTo(cx + 56, cy - 34);
-        ctx.lineTo(cx + 22, cy - 20);
+        ctx.moveTo(cx - 58, cy - 36);
+        ctx.lineTo(cx - 20, cy - 18);
+        ctx.moveTo(cx + 58, cy - 36);
+        ctx.lineTo(cx + 20, cy - 18);
         ctx.stroke();
-      } else if (activeMood === "emotional") {
+      } else {
         ctx.beginPath();
-        ctx.moveTo(cx - 56, cy - 24);
-        ctx.lineTo(cx - 22, cy - 34);
-        ctx.moveTo(cx + 56, cy - 24);
-        ctx.lineTo(cx + 22, cy - 34);
+        ctx.moveTo(cx - 56, cy - 28);
+        ctx.lineTo(cx - 22, cy - 28);
+        ctx.moveTo(cx + 56, cy - 28);
+        ctx.lineTo(cx + 22, cy - 28);
         ctx.stroke();
       }
 
       // Eyes
-      const isBlinking = Math.sin(t / 900) > 0.96;
+      const blink = Math.sin(t / 950) > 0.96;
       ctx.fillStyle = "#0f172a";
-      if (isBlinking) {
+      if (blink) {
         ctx.fillRect(cx - 52, cy - 12, 26, 5);
         ctx.fillRect(cx + 26, cy - 12, 26, 5);
       } else {
@@ -334,53 +322,57 @@
       }
 
       // Mouth
-      const mouthOpen = isSpeaking ? 8 + Math.abs(Math.sin(t / 95)) * 22 : 6;
+      const mouthRadiusY = isSpeaking ? 7 + Math.abs(Math.sin(t / (isAngry ? 75 : 120))) * 22 : 5;
       ctx.fillStyle = "#991b1b";
       ctx.beginPath();
-      ctx.ellipse(cx, cy + 42, 24, mouthOpen, 0, 0, Math.PI * 2);
+      ctx.ellipse(cx, cy + 42, 24, mouthRadiusY, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      // Active line caption box (only currently speaking line)
-      ctx.fillStyle = "rgba(15, 23, 42, 0.9)";
+      // Active line screen caption
+      ctx.fillStyle = "rgba(15, 23, 42, 0.92)";
       ctx.beginPath();
-      ctx.roundRect(40, 770, w - 80, 410, 28);
+      ctx.roundRect(38, 765, w - 76, 420, 28);
       ctx.fill();
 
-      ctx.strokeStyle = borderAccent;
+      ctx.strokeStyle = accentColor;
       ctx.lineWidth = 3;
       ctx.stroke();
 
-      ctx.fillStyle = borderAccent;
+      ctx.fillStyle = accentColor;
       ctx.font = "bold 24px system-ui, sans-serif";
       ctx.textAlign = "center";
-      const total = linesQueue.length || 1;
-      const lineBadge = isSpeaking ? `LINE ${activeLineIdx + 1} / ${total} • ${activeMood.toUpperCase()}` : "READY";
-      ctx.fillText(lineBadge, w / 2, 820);
+      const moodLabel = isAngry ? "GUSSO" : "SHANTI";
+      const badgeText = isRunning
+        ? `LINE ${activeLineIdx + 1} / ${linesQueue.length} • ${moodLabel}`
+        : "DONE";
+      ctx.fillText(badgeText, w / 2, 818);
 
       ctx.fillStyle = "#ffffff";
-      ctx.font = "bold 38px system-ui, sans-serif";
-      const textToDraw = activeLineText || "";
-      const lines = wrapLines(ctx, textToDraw, w - 130);
-      const startY = 890;
-      lines.forEach((line, idx) => {
-        ctx.fillText(line, w / 2, startY + idx * 54);
+      ctx.font = "bold 40px system-ui, sans-serif";
+      const lines = wrapCanvasText(ctx, activeLineText || "", w - 120);
+      const startY = 895;
+      lines.forEach((l, i) => {
+        ctx.fillText(l, w / 2, startY + i * 58);
       });
     }
 
     function startRenderLoop() {
       if (animFrame) cancelAnimationFrame(animFrame);
-      const step = (t) => {
+      const loop = (t) => {
         drawCartoonScene(t);
-        animFrame = requestAnimationFrame(step);
+        animFrame = requestAnimationFrame(loop);
       };
-      animFrame = requestAnimationFrame(step);
+      animFrame = requestAnimationFrame(loop);
     }
 
     function stopCartoonVideo() {
+      isRunning = false;
       isSpeaking = false;
-      isRecording = false;
       activeLineText = "";
-      activeMood = "neutral";
+      if (fallbackTimer) {
+        clearTimeout(fallbackTimer);
+        fallbackTimer = null;
+      }
       if ("speechSynthesis" in window) {
         window.speechSynthesis.cancel();
       }
@@ -391,51 +383,75 @@
       drawCartoonScene(performance.now());
     }
 
-    function speakLineAt(index) {
-      if (!isRecording && !isSpeaking) return;
-      if (index >= linesQueue.length) {
+    function speakLine(idx) {
+      if (!isRunning) return;
+
+      if (idx >= linesQueue.length) {
+        isRunning = false;
         isSpeaking = false;
         activeLineText = "";
+        document.getElementById("genVideoBtn").textContent = "3. Generate Video";
         setTimeout(() => {
           if (mediaRecorder && mediaRecorder.state === "recording") {
             mediaRecorder.stop();
           }
-          stopCartoonVideo();
-        }, 500);
+        }, 400);
         return;
       }
 
-      activeLineIdx = index;
-      activeLineText = linesQueue[index];
+      activeLineIdx = idx;
+      activeLineText = linesQueue[idx];
+      activeMood = detectAutoMood(activeLineText);
 
       const lang = document.getElementById("langOption").value;
       const gender = document.getElementById("voiceGender").value;
-      activeMood = detectMoodFromLine(activeLineText, gender);
-      const tone = getToneParams(activeMood, gender);
+      const settings = getMoodSettings(activeMood, gender);
 
       if (!("speechSynthesis" in window)) {
         isSpeaking = true;
-        setTimeout(() => speakLineAt(index + 1), 2400);
+        fallbackTimer = setTimeout(() => {
+          isSpeaking = false;
+          speakLine(idx + 1);
+        }, 2400);
         return;
       }
 
       window.speechSynthesis.cancel();
       const utter = new SpeechSynthesisUtterance(activeLineText);
       utter.lang = lang;
-      utter.pitch = tone.pitch;
-      utter.rate = tone.rate;
+      utter.pitch = settings.pitch;
+      utter.rate = settings.rate;
 
-      const chosenVoice = pickBestVoice(lang, gender);
-      if (chosenVoice) utter.voice = chosenVoice;
+      const chosen = pickBestVoice(lang, gender);
+      if (chosen) utter.voice = chosen;
 
       isSpeaking = true;
+
+      const estDuration = Math.max(2200, activeLineText.length * 110) + 1200;
+      fallbackTimer = setTimeout(() => {
+        if (!isRunning) return;
+        isSpeaking = false;
+        speakLine(idx + 1);
+      }, estDuration);
+
       utter.onend = () => {
-        if (!isRecording && !isSpeaking) return;
-        speakLineAt(index + 1);
+        if (fallbackTimer) {
+          clearTimeout(fallbackTimer);
+          fallbackTimer = null;
+        }
+        if (!isRunning) return;
+        isSpeaking = false;
+        speakLine(idx + 1);
       };
+
       utter.onerror = () => {
-        if (!isRecording && !isSpeaking) return;
-        speakLineAt(index + 1);
+        if (fallbackTimer) {
+          clearTimeout(fallbackTimer);
+          fallbackTimer = null;
+        }
+        if (!isRunning) return;
+        isSpeaking = false;
+        speakLine(idx + 1);
       };
 
       window.speechSynthesis.speak(utter);
@@ -452,17 +468,16 @@
       linesQueue = splitIntoLines(raw);
       activeLineIdx = 0;
       activeLineText = linesQueue[0];
-      const gender = document.getElementById("voiceGender").value;
-      activeMood = detectMoodFromLine(activeLineText, gender);
+      activeMood = detectAutoMood(activeLineText);
+      isRunning = true;
 
       document.getElementById("stageWrap").style.display = "flex";
       document.getElementById("downloadBtn").style.display = "none";
+      document.getElementById("genVideoBtn").textContent = "Playing & Recording... (Tap Stop)";
       startRenderLoop();
 
       const canvas = document.getElementById("cartoonCanvas");
-      const canRecord = Boolean(canvas.captureStream && typeof MediaRecorder !== "undefined");
-
-      if (canRecord) {
+      if (canvas.captureStream && typeof MediaRecorder !== "undefined") {
         chunks = [];
         const stream = canvas.captureStream(30);
         const types = ["video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm", "video/mp4"];
@@ -474,10 +489,6 @@
             if (e.data && e.data.size > 0) chunks.push(e.data);
           };
           mediaRecorder.onstop = () => {
-            isRecording = false;
-            isSpeaking = false;
-            activeLineText = "";
-            document.getElementById("genVideoBtn").textContent = "3. Generate Video";
             if (!chunks.length) return;
             const blob = new Blob(chunks, { type: mime || "video/webm" });
             const url = URL.createObjectURL(blob);
@@ -487,15 +498,12 @@
             dl.style.display = "inline-block";
           };
           mediaRecorder.start();
-          isRecording = true;
-          document.getElementById("genVideoBtn").textContent = "Recording... (Tap Stop)";
         } catch (err) {
-          isRecording = false;
+          // Recording fallback without crash
         }
       }
 
-      isSpeaking = true;
-      speakLineAt(0);
+      speakLine(0);
     }
   </script>
 </body>
