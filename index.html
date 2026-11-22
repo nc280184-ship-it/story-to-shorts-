@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="gu">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Story to Shorts - Gujarati & Hindi</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
+    body { background: #0f172a; color: #f8fafc; min-height: 100vh; padding: 18px; }
+    .container { max-width: 540px; margin: 0 auto; }
+    h1 { font-size: 1.7rem; color: #38bdf8; margin-bottom: 6px; }
+    p.sub { color: #94a3b8; font-size: 0.92rem; margin-bottom: 16px; line-height: 1.4; }
+    label { display: block; font-size: 0.85rem; color: #cbd5e1; margin-bottom: 6px; }
+    select, textarea {
+      width: 100%; border-radius: 12px; border: 1px solid #334155;
+      background: #1e293b; color: #f8fafc; font-size: 1rem; margin-bottom: 14px;
+    }
+    select { padding: 11px 12px; }
+    textarea { height: 150px; padding: 14px; resize: vertical; line-height: 1.5; }
+    .btn-row { display: flex; gap: 10px; }
+    button {
+      flex: 1; padding: 13px; border: none; border-radius: 12px;
+      font-weight: 700; font-size: 0.95rem; cursor: pointer;
+    }
+    .btn-primary { background: #38bdf8; color: #0f172a; }
+    .btn-stop { background: #ef4444; color: #ffffff; max-width: 120px; }
+    .output { margin-top: 22px; display: flex; flex-direction: column; gap: 12px; }
+    .card {
+      background: #1e293b; border: 1px solid #334155; border-radius: 14px;
+      padding: 15px; line-height: 1.55;
+    }
+    .tag { font-size: 0.75rem; color: #38bdf8; font-weight: 700; margin-bottom: 8px; text-transform: uppercase; }
+    .card-text { margin-bottom: 12px; font-size: 1rem; }
+    .speak-btn {
+      background: #22c55e; color: #052e16; padding: 9px 14px;
+      border-radius: 10px; font-size: 0.88rem; font-weight: 700; border: none; cursor: pointer;
+    }
+    .note { margin-top: 18px; font-size: 0.8rem; color: #94a3b8; line-height: 1.45; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Story to Shorts</h1>
+    <p class="sub">Text લખો, Gujarati અથવા Hindi ભાષા પસંદ કરો, Shorts ભાગ બનાવો અને Voice સાંભળો.</p>
+
+    <label for="langSelect">ભાષા (Language)</label>
+    <select id="langSelect">
+      <option value="gu-IN">ગુજરાતી (Gujarati)</option>
+      <option value="hi-IN">हिन्दी (Hindi)</option>
+    </select>
+
+    <label for="storyInput">તમારી વાર્તા / Text અહીં લખો</label>
+    <textarea id="storyInput" placeholder="અહીં ગુજરાતી અથવા હિન્દીમાં text લખો અથવા paste કરો..."></textarea>
+
+    <div class="btn-row">
+      <button class="btn-primary" onclick="generateShorts()">Generate Shorts</button>
+      <button class="btn-stop" onclick="stopVoice()">Stop Voice</button>
+    </div>
+
+    <div class="output" id="output"></div>
+
+    <div class="note">
+      * Voice માટે તમારા ફોન/બ્રાઉઝરના Text-to-Speech (Gujarati / Hindi voice data) નો ઉપયોગ થાય છે. Video file (.mp4) સીધી બ્રાઉઝરમાંથી બનતી નથી; સ્ક્રીન રેકોર્ડર અથવા video editor વાપરી શકો છો.
+    </div>
+  </div>
+
+  <script>
+    function stopVoice() {
+      if ("speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+      }
+    }
+
+    function speakText(text) {
+      if (!("speechSynthesis" in window)) {
+        alert("તમારા બ્રાઉઝરમાં Voice સપોર્ટ નથી.");
+        return;
+      }
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      const lang = document.getElementById("langSelect").value;
+      utterance.lang = lang;
+      utterance.rate = 0.98;
+      window.speechSynthesis.speak(utterance);
+    }
+
+    function generateShorts() {
+      stopVoice();
+      const raw = document.getElementById("storyInput").value.trim();
+      const out = document.getElementById("output");
+      out.innerHTML = "";
+
+      if (!raw) {
+        out.innerHTML = '<div class="card">કૃપા કરીને પહેલા થોડું text લખો.</div>';
+        return;
+      }
+
+      const parts = raw
+        .split(/(?<=[.!?।])\s+|\n+/)
+        .map(s => s.trim())
+        .filter(Boolean);
+
+      const chunkSize = Math.max(1, Math.ceil(parts.length / 3));
+
+      for (let i = 0; i < parts.length; i += chunkSize) {
+        const chunk = parts.slice(i, i + chunkSize).join(" ");
+        const idx = Math.floor(i / chunkSize) + 1;
+        const card = document.createElement("div");
+        card.className = "card";
+
+        const tag = document.createElement("div");
+        tag.className = "tag";
+        tag.textContent = "Short #" + idx;
+
+        const body = document.createElement("div");
+        body.className = "card-text";
+        body.textContent = chunk;
+
+        const btn = document.createElement("button");
+        btn.className = "speak-btn";
+        btn.textContent = "▶ Listen Voice";
+        btn.onclick = () => speakText(chunk);
+
+        card.appendChild(tag);
+        card.appendChild(body);
+        card.appendChild(btn);
+        out.appendChild(card);
+      }
+    }
+  </script>
+</body>
+</html>
